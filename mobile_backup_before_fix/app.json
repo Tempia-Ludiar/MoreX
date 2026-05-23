@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "MoreX",
+    "slug": "morex",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "morex",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.morex.mvp"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MoreXに保存するスクリーンショットを選ぶため、写真へのアクセスを許可してください。"
+        }
+      ]
+    ]
+  }
+}
