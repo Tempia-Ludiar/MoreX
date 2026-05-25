@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { SupabaseAuthCard } from '@/components/SupabaseAuthCard';
 import { TopMarquee } from '@/components/TopMarquee';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { clearTips } from '@/lib/tipsStorage';
+import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient';
 
 const WAITLIST_KEY = 'morex.waitlist.email.v0';
 
@@ -15,11 +17,17 @@ const plusFeatures = [
   { icon: '🏷', label: 'カスタムカテゴリ', desc: '自分だけのカテゴリ管理' },
 ];
 
+type ConnectionStatus = 'idle' | 'checking' | 'success' | 'error';
+
 export default function SettingsScreen() {
   const [dangerOpen, setDangerOpen] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [registered, setRegistered] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle');
+  const [connectionMessage, setConnectionMessage] = useState(
+    'Supabase Authへの疎通を確認できます。',
+  );
 
   useEffect(() => {
     AsyncStorage.getItem(WAITLIST_KEY).then((saved) => {
@@ -41,6 +49,38 @@ export default function SettingsScreen() {
     Alert.alert('削除完了', 'すべてのデータを削除しました。');
   };
 
+  const testSupabaseConnection = async () => {
+    setConnectionStatus('checking');
+
+    if (!isSupabaseConfigured) {
+      setConnectionStatus('error');
+      setConnectionMessage(
+        'NEXT_PUBLIC_SUPABASE_URL または NEXT_PUBLIC_SUPABASE_ANON_KEY が未設定です。',
+      );
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.getUser();
+
+      if (error) {
+        setConnectionStatus('error');
+        setConnectionMessage(error.message);
+        return;
+      }
+
+      setConnectionStatus('success');
+      setConnectionMessage(
+        data.user
+          ? `接続成功: ${data.user.email ?? data.user.id} として認証されています。`
+          : '接続成功: Supabaseから正常に応答がありました。',
+      );
+    } catch (error) {
+      setConnectionStatus('error');
+      setConnectionMessage(error instanceof Error ? error.message : '接続確認中に不明なエラーが発生しました。');
+    }
+  };
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <TopMarquee messages={['MoreX — 保存で終わらせない。Tipsを実行に変える。']} />
@@ -58,6 +98,38 @@ export default function SettingsScreen() {
           </View>
         </View>
       </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Supabase接続</Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.connectionHeader}>
+          <View style={[styles.connectionDot, styles[`${connectionStatus}Dot`]]} />
+          <View style={styles.connectionCopy}>
+            <Text style={styles.connectionTitle}>Auth接続テスト</Text>
+            <Text style={[styles.connectionMessage, connectionStatus === 'error' && styles.connectionError]}>
+              {connectionMessage}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          activeOpacity={0.82}
+          disabled={connectionStatus === 'checking'}
+          onPress={testSupabaseConnection}
+          style={[styles.connectionButton, connectionStatus === 'checking' && styles.connectionButtonDisabled]}
+        >
+          <Text style={styles.connectionButtonText}>
+            {connectionStatus === 'checking' ? '確認中...' : '接続テスト'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>ログイン</Text>
+      </View>
+
+      <SupabaseAuthCard />
 
       {/* Plus features */}
       <View style={styles.sectionHeader}>
@@ -201,6 +273,30 @@ const styles = StyleSheet.create({
   logoInfo: { flex: 1, gap: 2 },
   appName: { color: colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   appTagline: { color: colors.inkSub, fontSize: 12, lineHeight: 18 },
+
+  connectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
+  connectionDot: {
+    borderRadius: radius.pill,
+    height: 10,
+    width: 10,
+  },
+  idleDot: { backgroundColor: colors.inkMuted },
+  checkingDot: { backgroundColor: colors.yellow },
+  successDot: { backgroundColor: colors.green },
+  errorDot: { backgroundColor: colors.danger },
+  connectionCopy: { flex: 1, gap: 4 },
+  connectionTitle: { color: colors.ink, fontSize: 14, fontWeight: '700' },
+  connectionMessage: { color: colors.inkSub, fontSize: 12, lineHeight: 18 },
+  connectionError: { color: colors.danger },
+  connectionButton: {
+    alignItems: 'center',
+    backgroundColor: colors.ink,
+    borderRadius: radius.md,
+    justifyContent: 'center',
+    minHeight: 44,
+  },
+  connectionButtonDisabled: { opacity: 0.55 },
+  connectionButtonText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
 
   sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, paddingHorizontal: 2 },
   sectionTitle: { color: colors.inkSub, fontSize: 12, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },

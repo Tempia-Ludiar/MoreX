@@ -10,3 +10,5 @@ mobile/dist-ios-check/
 
 .env
 .env.*
+!.env.example
+!mobile/.env.example

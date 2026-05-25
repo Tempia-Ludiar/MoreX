@@ -10,9 +10,45 @@ npm install
 npm run start
 ```
 
-Expo GoまたはiOSシミュレーターで起動してください。Webで確認する場合は 
-pm run web を使います。\n\nQRコードはiPhone標準カメラではなく、Expo Goアプリ内のスキャナーで読み込むのが確実です。スマホで確認する場合はPCとスマホを同じWi-Fiに接続し、
-pm run start で表示されるLAN用QRを使ってください。
+Expo GoまたはiOSシミュレーターで起動してください。Webで確認する場合は次を使います。
+
+```bash
+npm run web
+```
+
+QRコードはiPhone標準カメラではなく、Expo Goアプリ内のスキャナーで読み込むのが確実です。スマホで確認する場合はPCとスマホを同じWi-Fiに接続し、`npm run start` で表示されるLAN用QRを使ってください。
+
+## Supabase設定
+
+`.env.example` をコピーして `.env` を作り、Supabaseの公開用キーを設定します。
+
+```bash
+cp .env.example .env
+```
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
+```
+
+`service_role` key はアプリに入れないでください。
+
+## Web公開
+
+このアプリはGitHubに載せて、VercelなどでWeb公開できます。Vercelでは次の設定にします。
+
+- Root Directory: `mobile`
+- Build Command: `npm run vercel-build`
+- Output Directory: `dist`
+- Environment Variables:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+ローカルでWeb公開用ビルドを確認する場合:
+
+```bash
+npm run export:web
+```
 
 ## 実装済み機能
 
@@ -28,12 +64,15 @@ pm run start で表示されるLAN用QRを使ってください。
 - Playbook画面で実行済みTipsを無料3件まで表示
 - データ全削除
 - Plus機能 Coming Soon 表示
+- Supabase接続テスト
+- Supabase Authの新規登録 / ログイン / ログアウト
+- Supabase Authセッション保持
 
 ## 未実装機能
 
 - X API連携
 - AI要約 / AI自動分類
-- ログイン / クラウド同期
+- Tipsのクラウド同期
 - OCR検索
 - 通知 / リマインダー本実装
 - 課金処理
