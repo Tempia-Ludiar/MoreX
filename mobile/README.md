@@ -64,7 +64,6 @@ npm run export:web
 - Playbook画面で実行済みTipsを無料3件まで表示
 - データ全削除
 - Plus機能 Coming Soon 表示
-- Supabase接続テスト
 - Supabase Authの新規登録 / ログイン / ログアウト
 - Supabase Authセッション保持
 
