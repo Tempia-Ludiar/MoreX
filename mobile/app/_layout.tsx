@@ -2,6 +2,7 @@ import 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, StyleSheet, View } from 'react-native';
+import { AuthGate } from '@/components/AuthGate';
 import { Onboarding } from '@/components/Onboarding';
 import { tokens } from '@/constants/tokens';
 
@@ -10,8 +11,10 @@ export default function RootLayout() {
     <View style={styles.root}>
       <View style={styles.container}>
         <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }} />
-        <Onboarding />
+        <AuthGate>
+          <Stack screenOptions={{ headerShown: false }} />
+          <Onboarding />
+        </AuthGate>
       </View>
     </View>
   );
