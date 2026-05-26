@@ -27,8 +27,8 @@ cp .env.example .env
 ```
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
+EXPO_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
 ```
 
 `service_role` key はアプリに入れないでください。
@@ -41,8 +41,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
 - Build Command: `npm run vercel-build`
 - Output Directory: `dist`
 - Environment Variables:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `EXPO_PUBLIC_SUPABASE_URL`
+  - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
 ローカルでWeb公開用ビルドを確認する場合:
 

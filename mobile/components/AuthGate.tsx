@@ -52,7 +52,7 @@ export function AuthGate({ children }: Props) {
           <Text style={styles.cardTitle}>ログイン</Text>
           {!isSupabaseConfigured ? (
             <Text style={styles.errorText}>
-              Supabaseの環境変数が未設定です。VercelのEnvironment Variablesに2つの値を追加して再デプロイしてください。
+              Supabaseの環境変数が未設定です。VercelのEnvironment VariablesにEXPO_PUBLIC_で始まる2つの値を追加して再デプロイしてください。
             </Text>
           ) : null}
           <AuthForm

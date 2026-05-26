@@ -24,8 +24,8 @@ npm run start
 `mobile/.env.example` をコピーして `mobile/.env` を作成してください。
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
+EXPO_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
 ```
 
 `service_role` key はアプリに入れないでください。
@@ -38,6 +38,5 @@ GitHubにpushしたあと、VercelでこのリポジトリをImportします。
 - Build Command: `npm run vercel-build`
 - Output Directory: `dist`
 - Environment Variables:
-  - `NEXT_PUBLIC_SUPABASE_URL`
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-
+  - `EXPO_PUBLIC_SUPABASE_URL`
+  - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
