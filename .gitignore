@@ -12,3 +12,8 @@ mobile/dist-ios-check/
 .env.*
 !.env.example
 !mobile/.env.example
+
+# Generated artifacts
+web-export/
+screenshots/
+design_refs/

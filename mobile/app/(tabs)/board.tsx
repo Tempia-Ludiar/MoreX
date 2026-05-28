@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { EmptyState } from '@/components/EmptyState';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { TipCard } from '@/components/TipCard';
-import { TopMarquee } from '@/components/TopMarquee';
+import { TodaysTipHero } from '@/components/TodaysTipHero';
 import { statuses } from '@/constants/tips';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { formatDateLabel } from '@/lib/date';
@@ -13,9 +13,18 @@ import { Tip, TipStatus } from '@/types/tip';
 
 const all = 'all';
 const dayMs = 24 * 60 * 60 * 1000;
-
 const daysSince = (isoDate: string) =>
   Math.max(0, Math.floor((Date.now() - new Date(isoDate).getTime()) / dayMs));
+
+// Priority bucket thresholds
+const BUCKET_HIGH = 75;
+const BUCKET_MID = 50;
+
+const BUCKETS = [
+  { key: 'high', label: 'High Value', dotColor: '#EA580C', min: BUCKET_HIGH, max: 100 },
+  { key: 'mid', label: 'Worth Reviewing', dotColor: '#A16207', min: BUCKET_MID, max: BUCKET_HIGH - 1 },
+  { key: 'low', label: 'Low Priority', dotColor: '#94A3B8', min: 1, max: BUCKET_MID - 1 },
+] as const;
 
 export default function LibraryScreen() {
   const [tips, setTips] = useState<Tip[]>([]);
@@ -36,17 +45,21 @@ export default function LibraryScreen() {
     [tips],
   );
 
-  const marqueeMessages = useMemo(() => {
-    const activeTips = tips.filter((t) => t.status !== 'trash');
-    const todoCount = activeTips.filter((t) => t.status === 'todo').length;
-    const allDone = activeTips.length > 0 && activeTips.every((t) => t.status === 'done');
-    const oldestDays = activeTips.length ? Math.max(...activeTips.map((t) => daysSince(t.createdAt))) : 0;
-    if (allDone) return ['すべて実行済み。新しいTipsを追加しよう。'];
-    const msgs: string[] = [];
-    if (todoCount >= 3) msgs.push(`未実行が ${todoCount}件 溜まっています。上から消化しよう。`);
-    if (oldestDays >= 7) msgs.push(`最古のTipsは ${oldestDays}日前。実行するか不要にするか決めよう。`);
-    return msgs.length ? msgs : ['今日、どれをやる？'];
-  }, [tips]);
+  // Highest priority non-done/trash tip for hero card
+  const todaysTip = useMemo(
+    () => tips
+      .filter((t) => t.status !== 'done' && t.status !== 'trash')
+      .sort((a, b) => b.priority - a.priority)[0] ?? null,
+    [tips],
+  );
+
+  // Status counts for segment badges
+  const statusCounts = useMemo(() => ({
+    all: tips.length,
+    todo: tips.filter((t) => t.status === 'todo').length,
+    done: tips.filter((t) => t.status === 'done').length,
+    trash: tips.filter((t) => t.status === 'trash').length,
+  }), [tips]);
 
   const filteredTips = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -61,17 +74,35 @@ export default function LibraryScreen() {
       .sort((a, b) => b.priority - a.priority || b.createdAt.localeCompare(a.createdAt));
   }, [tips, query, category, status]);
 
+  // Group into priority buckets
+  const bucketedTips = useMemo(() => BUCKETS.map((b) => ({
+    ...b,
+    tips: filteredTips.filter((t) => t.priority >= b.min && t.priority <= b.max),
+  })).filter((b) => b.tips.length > 0), [filteredTips]);
+
+  const segmentOptions = [
+    { key: all, label: 'すべて', count: statusCounts.all },
+    { key: 'todo', label: '未実行', count: statusCounts.todo },
+    { key: 'done', label: '実行済み', count: statusCounts.done },
+    { key: 'trash', label: '不要', count: statusCounts.trash },
+  ];
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
-      <TopMarquee messages={marqueeMessages} />
-      <ScreenHeader title="Library" subtitle={`保存中: ${tips.length}件`} />
+      <ScreenHeader
+        title="Library"
+        subtitle={`保存中 ${tips.length}件 · 未実行 ${statusCounts.todo}件`}
+      />
+
+      {/* Today's Tip hero — only if there's an active tip */}
+      {todaysTip ? <TodaysTipHero tip={todaysTip} /> : null}
 
       {/* Search */}
-      <View style={styles.searchCard}>
+      <View style={styles.searchRow}>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -79,58 +110,83 @@ export default function LibraryScreen() {
           placeholderTextColor={colors.inkMuted}
           style={styles.searchInput}
         />
+        {query.length > 0 ? (
+          <TouchableOpacity onPress={() => setQuery('')} style={styles.clearBtn}>
+            <Text style={styles.clearText}>✕</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
-      {/* Category filter */}
+      {/* Status segmented control */}
+      <View style={styles.segmented}>
+        {segmentOptions.map((seg) => (
+          <TouchableOpacity
+            key={seg.key}
+            style={[styles.segment, status === seg.key && styles.segmentActive]}
+            onPress={() => setStatus(seg.key as TipStatus | typeof all)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.segLabel, status === seg.key && styles.segLabelActive]}>
+              {seg.label}
+            </Text>
+            {seg.count > 0 ? (
+              <View style={[styles.segBadge, status === seg.key && styles.segBadgeActive]}>
+                <Text style={[styles.segBadgeText, status === seg.key && styles.segBadgeTextActive]}>
+                  {seg.count}
+                </Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Category chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterRow}
+        contentContainerStyle={styles.categoryRow}
       >
-        <Chip label="すべて" active={category === all} onPress={() => setCategory(all)} />
-        {categories.map((item) => (
-          <Chip key={item} label={item} active={category === item} onPress={() => setCategory(item)} />
+        <CategoryChip label="すべて" active={category === all} onPress={() => setCategory(all)} />
+        {categories.map((cat) => (
+          <CategoryChip key={cat} label={cat} active={category === cat} onPress={() => setCategory(cat)} />
         ))}
       </ScrollView>
 
-      {/* Status filter */}
-      <View style={styles.statusRow}>
-        <Chip label="すべて" active={status === all} onPress={() => setStatus(all)} />
-        {statuses.map((item) => (
-          <Chip
-            key={item.value}
-            label={item.label}
-            active={status === item.value}
-            onPress={() => setStatus(item.value as TipStatus)}
-          />
-        ))}
-      </View>
-
-      {/* Count row */}
+      {/* Count */}
       <View style={styles.countRow}>
-        <Text style={styles.count}>{filteredTips.length}件</Text>
+        <Text style={styles.countText}>{filteredTips.length}件</Text>
         <Text style={styles.sortLabel}>優先度順</Text>
       </View>
 
-      {/* Tips */}
-      {filteredTips.length
-        ? filteredTips.map((tip) => (
-            <TipCard key={tip.id} tip={tip} showCheckbox onStatusToggle={toggleStatus} />
-          ))
-        : <EmptyState title="該当するTipsがありません" />
-      }
+      {/* Tips by priority bucket */}
+      {filteredTips.length === 0 ? (
+        <EmptyState title="該当するTipsがありません" />
+      ) : (
+        bucketedTips.map((bucket) => (
+          <View key={bucket.key} style={styles.bucket}>
+            <View style={styles.bucketHeader}>
+              <View style={[styles.bucketDot, { backgroundColor: bucket.dotColor }]} />
+              <Text style={[styles.bucketLabel, { color: bucket.dotColor }]}>{bucket.label}</Text>
+              <Text style={styles.bucketCount}>{bucket.tips.length}件</Text>
+            </View>
+            {bucket.tips.map((tip) => (
+              <TipCard key={tip.id} tip={tip} showCheckbox onStatusToggle={toggleStatus} />
+            ))}
+          </View>
+        ))
+      )}
     </ScrollView>
   );
 }
 
-function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function CategoryChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <TouchableOpacity
-      style={[styles.chip, active && styles.chipActive]}
+      style={[styles.catChip, active && styles.catChipActive]}
       onPress={onPress}
       activeOpacity={0.75}
     >
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+      <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -139,33 +195,120 @@ const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
   content: { gap: spacing.md, padding: spacing.lg, paddingBottom: 110 },
 
-  searchCard: {
+  searchRow: {
+    alignItems: 'center',
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
-    padding: 14,
+    flexDirection: 'row',
+    padding: 12,
+    paddingLeft: 14,
     ...shadow.cardSoft,
   },
   searchInput: {
     color: colors.ink,
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 2,
+  },
+  clearBtn: {
+    padding: 4,
+  },
+  clearText: {
+    color: colors.inkMuted,
     fontSize: 13,
-    paddingVertical: 4,
+    fontWeight: '600',
   },
 
-  filterRow: { gap: spacing.sm, paddingBottom: 2 },
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  // Status segmented control
+  segmented: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    ...shadow.cardSoft,
+  },
+  segment: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  segmentActive: {
+    backgroundColor: colors.ink,
+  },
+  segLabel: {
+    color: colors.inkSub,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  segLabelActive: {
+    color: '#ffffff',
+  },
+  segBadge: {
+    backgroundColor: colors.bg,
+    borderRadius: radius.pill,
+    minWidth: 16,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    alignItems: 'center',
+  },
+  segBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  segBadgeText: {
+    color: colors.inkMuted,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  segBadgeTextActive: {
+    color: '#ffffff',
+  },
 
-  chip: {
+  // Category chips
+  categoryRow: { gap: spacing.sm, paddingBottom: 2 },
+  catChip: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.pill,
     paddingHorizontal: 14,
     paddingVertical: 7,
     ...shadow.cardSoft,
   },
-  chipActive: { backgroundColor: colors.ink },
-  chipText: { color: colors.inkSub, fontSize: 12, fontWeight: '600' },
-  chipTextActive: { color: '#ffffff' },
+  catChipActive: { backgroundColor: colors.ink },
+  catChipText: { color: colors.inkSub, fontSize: 12, fontWeight: '600' },
+  catChipTextActive: { color: '#ffffff' },
 
-  countRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  count: { color: colors.inkMuted, fontSize: 12, fontWeight: '600' },
+  countRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 2,
+  },
+  countText: { color: colors.inkMuted, fontSize: 12, fontWeight: '600' },
   sortLabel: { color: colors.inkMuted, fontSize: 11 },
+
+  // Priority buckets
+  bucket: { gap: spacing.sm },
+  bucketHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  bucketDot: {
+    borderRadius: 3,
+    height: 8,
+    width: 8,
+  },
+  bucketLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  bucketCount: {
+    color: colors.inkMuted,
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });

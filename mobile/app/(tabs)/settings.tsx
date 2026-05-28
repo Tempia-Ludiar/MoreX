@@ -3,7 +3,6 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { SupabaseAuthCard } from '@/components/SupabaseAuthCard';
-import { TopMarquee } from '@/components/TopMarquee';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { clearTips } from '@/lib/tipsStorage';
 
@@ -44,29 +43,15 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <TopMarquee messages={['MoreX — 保存で終わらせない。Tipsを実行に変える。']} />
-      <ScreenHeader title="Settings" subtitle="MoreXの状態とPlus機能を確認できます。" />
+      <ScreenHeader title="Settings" subtitle="アカウントとアプリの設定" />
 
-      {/* App info card */}
-      <View style={styles.card}>
-        <View style={styles.logoRow}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoText}>M</Text>
-          </View>
-          <View style={styles.logoInfo}>
-            <Text style={styles.appName}>MoreX</Text>
-            <Text style={styles.appTagline}>保存で終わらせない。Tipsを実行に変える。</Text>
-          </View>
-        </View>
-      </View>
-
+      {/* Account section */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>アカウント</Text>
       </View>
-
       <SupabaseAuthCard />
 
-      {/* Plus features */}
+      {/* Plus features — compact 2×2 grid */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Plus機能</Text>
         <View style={styles.comingSoonBadge}>
@@ -74,35 +59,26 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      <View style={styles.card}>
-        {plusFeatures.map((feature, i) => (
-          <View key={feature.label} style={[styles.featureRow, i > 0 && styles.featureDivider]}>
-            <Text style={styles.featureIcon}>{feature.icon}</Text>
-            <View style={styles.featureInfo}>
-              <Text style={styles.featureLabel}>{feature.label}</Text>
-              <Text style={styles.featureDesc}>{feature.desc}</Text>
-            </View>
+      <View style={styles.plusGrid}>
+        {plusFeatures.map((feature) => (
+          <View style={styles.plusCard} key={feature.label}>
+            <Text style={styles.plusIcon}>{feature.icon}</Text>
+            <Text style={styles.plusLabel}>{feature.label}</Text>
+            <Text style={styles.plusDesc}>{feature.desc}</Text>
           </View>
         ))}
-        <Text style={styles.featureNote}>
-          OCR検索は端末内OCRで実装可能な場合のみ対応します。
-        </Text>
       </View>
 
-      {/* Waitlist */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>リリース通知</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.waitlistTitle}>Plusリリース時に通知を受け取る</Text>
+      {/* Release notification — highlighted CTA */}
+      <View style={styles.notifyCard}>
+        <Text style={styles.notifyTitle}>Plusリリース時に通知を受け取る</Text>
         {registered ? (
           <View style={styles.registeredRow}>
             <Text style={styles.registeredCheck}>✓</Text>
             <Text style={styles.registeredText}>{email} で登録済み</Text>
           </View>
         ) : (
-          <View style={styles.waitlistRow}>
+          <View style={styles.notifyRow}>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
@@ -115,10 +91,10 @@ export default function SettingsScreen() {
             />
             <TouchableOpacity
               activeOpacity={0.82}
-              style={styles.registerButton}
+              style={styles.notifyButton}
               onPress={registerWaitlist}
             >
-              <Text style={styles.registerText}>登録</Text>
+              <Text style={styles.notifyButtonText}>登録</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -187,30 +163,20 @@ const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
   content: { gap: spacing.md, padding: spacing.lg, paddingBottom: 110 },
 
-  card: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
-    ...shadow.card,
-  },
-
-  logoRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
-  logoBox: {
+  sectionHeader: {
     alignItems: 'center',
-    backgroundColor: colors.ink,
-    borderRadius: radius.md,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: 2,
+    marginTop: 4,
   },
-  logoText: { color: '#ffffff', fontSize: 22, fontWeight: '800' },
-  logoInfo: { flex: 1, gap: 2 },
-  appName: { color: colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  appTagline: { color: colors.inkSub, fontSize: 12, lineHeight: 18 },
-
-  sectionHeader: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, paddingHorizontal: 2 },
-  sectionTitle: { color: colors.inkSub, fontSize: 12, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  sectionTitle: {
+    color: colors.inkSub,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   comingSoonBadge: {
     backgroundColor: colors.accentSoft,
     borderRadius: radius.pill,
@@ -219,18 +185,37 @@ const styles = StyleSheet.create({
   },
   comingSoonText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
 
-  featureRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.md },
-  featureDivider: { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md },
-  featureIcon: { fontSize: 20 },
-  featureInfo: { flex: 1, gap: 2 },
-  featureLabel: { color: colors.ink, fontSize: 14, fontWeight: '700' },
-  featureDesc: { color: colors.inkSub, fontSize: 12 },
-  featureNote: { color: colors.inkMuted, fontSize: 11, lineHeight: 17, marginTop: spacing.xs },
+  // Plus 2×2 grid
+  plusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  plusCard: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    gap: 4,
+    padding: spacing.md,
+    width: '48%',
+    ...shadow.cardSoft,
+  },
+  plusIcon: { fontSize: 20 },
+  plusLabel: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 2 },
+  plusDesc: { color: colors.inkSub, fontSize: 11, lineHeight: 15 },
 
-  waitlistTitle: { color: colors.ink, fontSize: 14, fontWeight: '600' },
-  waitlistRow: { flexDirection: 'row', gap: spacing.sm },
+  // Notification CTA card
+  notifyCard: {
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    gap: spacing.md,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.15)',
+  },
+  notifyTitle: { color: colors.accentDeep, fontSize: 14, fontWeight: '700' },
+  notifyRow: { flexDirection: 'row', gap: spacing.sm },
   emailInput: {
-    backgroundColor: colors.bg,
+    backgroundColor: colors.bgElevated,
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -240,17 +225,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
   },
-  registerButton: {
+  notifyButton: {
     alignItems: 'center',
     backgroundColor: colors.accent,
     borderRadius: radius.md,
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
   },
-  registerText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  notifyButtonText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
   registeredRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
-  registeredCheck: { color: colors.green, fontSize: 16, fontWeight: '700' },
-  registeredText: { color: colors.inkSub, fontSize: 13 },
+  registeredCheck: { color: colors.accentDeep, fontSize: 16, fontWeight: '700' },
+  registeredText: { color: colors.accentDeep, fontSize: 13 },
 
   accordionRow: {
     alignItems: 'center',

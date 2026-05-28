@@ -11,33 +11,17 @@ type Props = {
   onStatusToggle?: (tip: Tip) => Promise<void> | void;
 };
 
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
-
-function PriorityBadge({ priority, color }: { priority: number; color: string }) {
-  const label = getPriorityMeta(priority).label;
-  const bg =
-    priority >= 90 ? '#ffeef1' :
-    priority >= 75 ? '#fff1e6' :
-    priority >= 50 ? '#fff8e1' : '#f5f5f7';
-  return (
-    <View style={[styles.priorityBadge, { backgroundColor: bg }]}>
-      <Text style={[styles.priorityBadgeText, { color }]}>P{priority}</Text>
-    </View>
-  );
-}
-
 function StatusBadge({ status }: { status: Tip['status'] }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
-    todo: { bg: '#eef0ff', text: '#4f46e5', label: '未実行' },
+    todo:  { bg: '#eef0ff', text: '#4f46e5', label: '未実行' },
     doing: { bg: '#eef0ff', text: '#4f46e5', label: '未実行' },
-    done: { bg: '#e6f9f0', text: '#0a8c5a', label: '実行済み' },
+    done:  { bg: '#e6f9f0', text: '#0a8c5a', label: '実行済み' },
     trash: { bg: '#f5f5f7', text: '#6b6b80', label: '不要' },
   };
   const s = map[status] ?? map.todo;
   return (
-    <View style={[styles.statusBadge, { backgroundColor: s.bg }]}>
-      <Text style={[styles.statusText, { color: s.text }]}>{s.label}</Text>
+    <View style={[styles.badge, { backgroundColor: s.bg }]}>
+      <Text style={[styles.badgeText, { color: s.text }]}>{s.label}</Text>
     </View>
   );
 }
@@ -101,28 +85,18 @@ export function TipCard({ tip, showCheckbox, onStatusToggle }: Props) {
         <Image source={{ uri: tip.imageUri }} style={styles.thumbnail} />
       ) : null}
 
-      <View style={[styles.metaRow, showCheckbox && styles.metaRowWithCb]}>
+      {/* Only category + status — no date/priority number noise */}
+      <View style={[styles.badgeRow, showCheckbox && styles.badgeRowWithCb]}>
         {tip.category ? (
           <View style={styles.catBadge}>
             <Text style={styles.catText}>{tip.category}</Text>
           </View>
         ) : null}
         <StatusBadge status={tip.status} />
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateText}>{formatDate(tip.createdAt)}</Text>
-        </View>
-        <PriorityBadge priority={priority} color={meta.color} />
       </View>
 
-      {meta.label ? (
-        <Text style={[styles.priorityLabel, { color: meta.color }]}>
-          {priority >= 90 ? '⚡ ' : ''}{meta.label}
-        </Text>
-      ) : null}
-
       <Text style={styles.title} numberOfLines={2}>{tip.title || '無題のTips'}</Text>
-      <Text style={styles.preview} numberOfLines={3}>{preview}</Text>
-      <Text style={styles.saveDate}>{formatDate(tip.createdAt)} に保存</Text>
+      <Text style={styles.preview} numberOfLines={2}>{preview}</Text>
     </TouchableOpacity>
   );
 }
@@ -144,62 +118,29 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     width: '100%',
   },
-  metaRow: {
+  badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 5,
+    gap: 6,
     alignItems: 'center',
   },
-  metaRowWithCb: {
-    paddingRight: 36,
-  },
+  badgeRowWithCb: { paddingRight: 40 },
   catBadge: {
     backgroundColor: colors.ink,
     borderRadius: radius.pill,
     paddingHorizontal: 9,
     paddingVertical: 3,
   },
-  catText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  statusBadge: {
+  catText: { color: '#ffffff', fontSize: 10, fontWeight: '600' },
+  badge: {
     borderRadius: radius.pill,
     paddingHorizontal: 9,
     paddingVertical: 3,
   },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  dateBadge: {
-    backgroundColor: '#f5f5f7',
-    borderRadius: radius.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-  },
-  dateText: {
-    color: colors.inkSub,
-    fontSize: 10,
-  },
-  priorityBadge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-  },
-  priorityBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  priorityLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: -2,
-  },
+  badgeText: { fontSize: 10, fontWeight: '600' },
   title: {
     color: colors.ink,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     letterSpacing: -0.3,
     lineHeight: 22,
@@ -209,24 +150,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
   },
-  saveDate: {
-    color: colors.inkMuted,
-    fontSize: 10,
-  },
   cbTouch: {
     position: 'absolute',
     top: 14,
     right: 14,
     zIndex: 1,
+    padding: 4,
   },
   cbCircle: {
     alignItems: 'center',
     borderColor: 'rgba(20,20,40,0.15)',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 2,
-    height: 28,
+    height: 32,
     justifyContent: 'center',
-    width: 28,
+    width: 32,
     backgroundColor: '#ffffff',
   },
   cbDone: {
@@ -238,18 +176,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  cbTrash: {
-    backgroundColor: '#e0e0e0',
-    borderColor: '#c0c0c0',
-  },
-  cbCheck: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  cbX: {
-    color: '#6b6b80',
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  cbTrash: { backgroundColor: '#e0e0e0', borderColor: '#c0c0c0' },
+  cbCheck: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  cbX: { color: '#6b6b80', fontSize: 13, fontWeight: '700' },
 });
