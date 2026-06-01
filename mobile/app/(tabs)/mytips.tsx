@@ -1,37 +1,189 @@
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { AchievementSummary } from '@/components/AchievementSummary';
 import { CategoryBarChart } from '@/components/CategoryBarChart';
 import { KnowledgeMap, KnowledgeCategory, hashColor } from '@/components/KnowledgeMap';
-import { ScreenHeader } from '@/components/ScreenHeader';
-import { TipCard } from '@/components/TipCard';
 import { colors, radius, shadow, spacing } from '@/theme';
-import { getTips, updateTip } from '@/lib/tipsStorage';
+import { getTips } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
 
-const FLOW_STEPS = [
-  { icon: '💾', label: '保存する', color: colors.accent, bg: colors.accentSoft },
-  { icon: '✓', label: '実行する', color: colors.green, bg: '#e6f9f0' },
-  { icon: '★', label: '蓄積される', color: colors.orange, bg: '#fff3eb' },
+// ── Source chip colors (matching Open Design) ────────────────
+const SOURCE_STYLES: Record<string, { bg: string; text: string }> = {
+  Codex:   { bg: '#2c1654', text: '#ff9de2' },
+  Claude:  { bg: '#1a1830', text: '#ff9f45' },
+  ChatGPT: { bg: '#0d1f0d', text: '#4ade80' },
+  X:       { bg: '#0f0f0f', text: '#e5e5e5' },
+  YouTube: { bg: '#1f0505', text: '#ff6b6b' },
+  note:    { bg: '#1a0a2e', text: '#bf5cf2' },
+  Web:     { bg: '#021e24', text: '#5ac8fa' },
+  Other:   { bg: '#1c1a04', text: '#ffdd55' },
+};
+
+const SOURCE_BAR: Record<string, [string, string]> = {
+  Codex:   ['#ff6b9d', '#a855f7'],
+  Claude:  ['#ff9500', '#ff6b9d'],
+  ChatGPT: ['#34c759', '#00b4d8'],
+  X:       ['#c0c0c0', '#808080'],
+  YouTube: ['#ff3b30', '#ff9500'],
+  note:    ['#bf5cf2', '#7c3aed'],
+  Web:     ['#5ac8fa', '#0a84ff'],
+  Other:   ['#ffcc00', '#ff9500'],
+};
+
+const KNOWN_SOURCES = ['ChatGPT', 'Claude', 'Codex', 'X', 'YouTube', 'note', 'Web'] as const;
+
+function getSourceKey(category?: string): string {
+  const cat = category?.trim();
+  if (!cat) return 'Other';
+  return (KNOWN_SOURCES as readonly string[]).includes(cat) ? cat : 'Other';
+}
+
+function formatSavedDate(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 保存`;
+}
+
+// ── Collections definition ───────────────────────────────────
+const COLLECTIONS: Array<{
+  id: string; icon: string; name: string; locked: boolean;
+  categories: string[] | null;
+}> = [
+  { id: 'all',  icon: '🗂', name: 'すべて',   locked: false, categories: null },
+  { id: 'ai',   icon: '🤖', name: 'AI活用',   locked: false, categories: ['ChatGPT', 'Claude', 'Codex'] },
+  { id: 'ui',   icon: '🎨', name: 'UI改善',   locked: false, categories: ['UI', 'デザイン', 'UX'] },
+  { id: 'post', icon: '✏️', name: '投稿ネタ', locked: true,  categories: null },
+  { id: 'dev',  icon: '💻', name: '開発',     locked: true,  categories: null },
 ];
 
-const KPI_ITEMS = [
-  { label: '累計実行' },
-  { label: '今週実行' },
-  { label: '連続記録' },
-];
+// ── MyTips Card ──────────────────────────────────────────────
+function MyTipsCard({ tip }: { tip: Tip }) {
+  const srcKey = getSourceKey(tip.category);
+  const srcStyle = SOURCE_STYLES[srcKey] ?? SOURCE_STYLES.Other;
+  const barColors = SOURCE_BAR[srcKey] ?? SOURCE_BAR.Other;
+  const learning = tip.afterMemo || tip.memo || '';
+  const reuse = tip.content || '';
 
+  return (
+    <View style={styles.tipCard}>
+      <LinearGradient
+        colors={barColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.tipTopBar}
+      />
+      <View style={styles.tipBody}>
+        <View style={styles.tipRow1}>
+          <View style={[styles.srcChip, { backgroundColor: srcStyle.bg }]}>
+            <Text style={[styles.srcChipText, { color: srcStyle.text }]}>{srcKey}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.tipStar}
+            onPress={() => router.push(`/tips/${tip.id}`)}
+            activeOpacity={0.7}
+          >
+            <Text style={tip.isInMyTips ? styles.tipStarFilled : styles.tipStarEmpty}>
+              {tip.isInMyTips ? '★' : '☆'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.tipTitle} numberOfLines={2}>{tip.title || '無題のTips'}</Text>
+
+        {learning ? (
+          <View style={styles.metaSection}>
+            <Text style={styles.metaLabel}>実行して得た学び</Text>
+            <Text style={styles.metaText} numberOfLines={3}>{learning}</Text>
+          </View>
+        ) : null}
+
+        {reuse ? (
+          <View style={styles.metaSection}>
+            <Text style={styles.metaLabel}>何に再利用できるか</Text>
+            <Text style={styles.metaText} numberOfLines={2}>{reuse}</Text>
+          </View>
+        ) : null}
+
+        <Text style={styles.tipDate}>{formatSavedDate(tip.updatedAt)}</Text>
+
+        <View style={styles.tipFoot}>
+          <TouchableOpacity
+            style={styles.reuseBtn}
+            onPress={() => router.push(`/tips/${tip.id}`)}
+            activeOpacity={0.8}
+          >
+            <Svg width={13} height={13} viewBox="0 0 13 13" fill="none">
+              <Path
+                d="M2.5 7A4.5 4.5 0 0 1 11 4M11 4V6.5M11 4H8.5"
+                stroke={colors.accent}
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text style={styles.reuseBtnText}>再利用する</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push(`/tips/${tip.id}`)} activeOpacity={0.7}>
+            <Text style={styles.detailBtn}>詳細 ›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── Plus Banner ──────────────────────────────────────────────
+function PlusBanner() {
+  return (
+    <LinearGradient
+      colors={['#0d0d2e', '#2d1660']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.plusBanner}
+    >
+      <View style={styles.plusIcon}>
+        <Text style={{ fontSize: 18, color: '#ffd555' }}>✦</Text>
+      </View>
+      <View style={styles.plusTextBlock}>
+        <Text style={styles.plusTitle}>PlusでKnowledge Mapを拡張</Text>
+        <Text style={styles.plusDesc}>無制限のMyTips・Collections・AI自動タグ付け・再浮上リマインド</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.plusCta}
+        activeOpacity={0.85}
+        onPress={() => Alert.alert('MoreX Plus', 'Coming soon! 近日公開予定です。')}
+      >
+        <Text style={styles.plusCtaText}>詳しく</Text>
+      </TouchableOpacity>
+    </LinearGradient>
+  );
+}
+
+// ── Main Screen ──────────────────────────────────────────────
 export default function MyTipsScreen() {
   const [tips, setTips] = useState<Tip[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<string>('all');
+  const [showSearch, setShowSearch] = useState(false);
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => setTips(await getTips()), []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const myTips = useMemo(
-    () => tips.filter((t) => t.status === 'done').sort((a, b) => b.priority - a.priority || b.updatedAt.localeCompare(a.updatedAt)),
+    () => tips
+      .filter((t) => t.isInMyTips === true || t.status === 'done')
+      .sort((a, b) => b.priority - a.priority || b.updatedAt.localeCompare(a.updatedAt)),
     [tips],
   );
 
@@ -42,9 +194,7 @@ export default function MyTipsScreen() {
       map.set(cat, (map.get(cat) ?? 0) + 1);
     }
     return Array.from(map.entries()).map(([name, count]) => ({
-      name,
-      count,
-      color: hashColor(name),
+      name, count, color: hashColor(name),
     }));
   }, [myTips]);
 
@@ -53,7 +203,6 @@ export default function MyTipsScreen() {
     return myTips.filter((t) => new Date(t.updatedAt).getTime() >= weekAgo).length;
   }, [myTips]);
 
-  // Consecutive-day streak: count days going back from today with ≥1 done tip
   const streakDays = useMemo(() => {
     const doneDates = new Set(myTips.map((t) => t.updatedAt.slice(0, 10)));
     let count = 0;
@@ -70,237 +219,415 @@ export default function MyTipsScreen() {
     return count;
   }, [myTips]);
 
-  const toggleStatus = useCallback(async (tip: Tip) => {
-    await updateTip(tip.id, { status: tip.status });
-    await load();
-  }, [load]);
+  const collectionCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: myTips.length };
+    COLLECTIONS.forEach((coll) => {
+      if (coll.id === 'all' || coll.locked || !coll.categories) return;
+      counts[coll.id] = myTips.filter((t) => {
+        const src = getSourceKey(t.category);
+        return (coll.categories as string[]).includes(src)
+          || (coll.categories as string[]).includes(t.category?.trim() ?? '');
+      }).length;
+    });
+    return counts;
+  }, [myTips]);
 
-  const filteredTips = useMemo(
-    () => selectedCategory
-      ? myTips.filter((t) => (t.category?.trim() || 'その他') === selectedCategory)
-      : myTips,
-    [myTips, selectedCategory],
-  );
+  const filteredTips = useMemo(() => {
+    let result = myTips;
+    const coll = COLLECTIONS.find((c) => c.id === selectedCollection);
+    if (coll?.categories && selectedCollection !== 'all') {
+      result = result.filter((t) => {
+        const src = getSourceKey(t.category);
+        return (coll.categories as string[]).includes(src)
+          || (coll.categories as string[]).includes(t.category?.trim() ?? '');
+      });
+    }
+    if (selectedCategory) {
+      result = result.filter((t) => (t.category?.trim() || 'その他') === selectedCategory);
+    }
+    if (query.trim()) {
+      const needle = query.trim().toLowerCase();
+      result = result.filter((t) => {
+        const hay = [t.title, t.memo, t.content, t.afterMemo, t.category].filter(Boolean).join(' ').toLowerCase();
+        return hay.includes(needle);
+      });
+    }
+    return result;
+  }, [myTips, selectedCollection, selectedCategory, query]);
 
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader
-        title="MyTips"
-        subtitle={`あなたの型 — ${myTips.length}件蓄積`}
-      />
-
-      {myTips.length > 0 ? (
-        <>
-          {/* 3-KPI achievement summary */}
-          <AchievementSummary
-            total={myTips.length}
-            week={weekCount}
-            streak={streakDays}
-          />
-
-          <KnowledgeMap
-            categories={knowledgeCategories}
-            totalCount={myTips.length}
-            weekCount={weekCount}
-            onCategoryPress={(name) =>
-              setSelectedCategory((prev) => (prev === name ? null : name))
-            }
-          />
-
-          <CategoryBarChart categories={knowledgeCategories} />
-
-          {selectedCategory ? (
-            <View style={styles.categoryHeader}>
-              <Text style={styles.categoryTitle}>{selectedCategory}</Text>
-              <TouchableOpacity onPress={() => setSelectedCategory(null)}>
-                <Text style={styles.clearFilter}>すべて表示</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          <View style={styles.countRow}>
-            <Text style={styles.countText}>{filteredTips.length}件</Text>
-            <Text style={styles.sortLabel}>優先度順</Text>
-          </View>
-
-          {filteredTips.map((tip) => (
-            <TipCard key={tip.id} tip={tip} showCheckbox onStatusToggle={toggleStatus} />
-          ))}
-        </>
-      ) : (
-        <View style={styles.emptyWrap}>
-          {/* Motivational hero card */}
-          <LinearGradient
-            colors={['#1a1a2e', '#241b40']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.heroCard}
-          >
-            <View style={styles.heroGlowBlob} />
-            <Text style={styles.heroEyebrow}>★  あなたの知識の型</Text>
-            <Text style={styles.heroTitle}>実行が、{'\n'}自分の型になる。</Text>
-            <Text style={styles.heroBody}>
-              TipsをLibraryで「実行済み」にするたびに{'\n'}ここに蓄積されていきます。
-            </Text>
-          </LinearGradient>
-
-          {/* 3-step flow */}
-          <View style={styles.flowCard}>
-            {FLOW_STEPS.map((step, i) => (
-              <View key={step.label} style={styles.flowItem}>
-                <View style={[styles.flowIcon, { backgroundColor: step.bg }]}>
-                  <Text style={[styles.flowIconText, { color: step.color }]}>{step.icon}</Text>
-                </View>
-                <Text style={styles.flowLabel}>{step.label}</Text>
-                {i < FLOW_STEPS.length - 1 && (
-                  <Text style={styles.flowArrow}>→</Text>
-                )}
-              </View>
-            ))}
-          </View>
-
-          {/* Zero-state KPI preview */}
-          <View style={styles.kpiRow}>
-            {KPI_ITEMS.map((kpi) => (
-              <View key={kpi.label} style={styles.kpiItem}>
-                <Text style={styles.kpiValue}>—</Text>
-                <Text style={styles.kpiLabel}>{kpi.label}</Text>
-              </View>
-            ))}
-          </View>
-
+  // ── Empty state ──────────────────────────────────────────
+  if (myTips.length === 0) {
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>MyTips</Text>
+          <Text style={styles.headerSub}>あなたの型 — 0件蓄積</Text>
+        </View>
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyIcon}>🌱</Text>
+          <Text style={styles.emptyTitle}>まだMyTipsがありません</Text>
+          <Text style={styles.emptyBody}>
+            Todoで実行したTipsの中から、役に立ったものをMyTipsに残しましょう。
+          </Text>
           <TouchableOpacity
-            activeOpacity={0.82}
-            style={styles.libraryButton}
+            style={styles.emptyBtn}
             onPress={() => router.push('/(tabs)/board')}
+            activeOpacity={0.82}
           >
-            <Text style={styles.libraryButtonText}>LibraryでTipsを実行する →</Text>
+            <Text style={styles.emptyBtnText}>Todoを見る →</Text>
           </TouchableOpacity>
         </View>
-      )}
+        <PlusBanner />
+      </ScrollView>
+    );
+  }
+
+  // ── Main view ────────────────────────────────────────────
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.headerTitle}>MyTips</Text>
+            <Text style={styles.headerSub}>あなたの型 — {myTips.length}件蓄積</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => { setShowSearch((v) => !v); if (showSearch) setQuery(''); }}
+              activeOpacity={0.7}
+            >
+              <Svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+                <Circle cx={6.5} cy={6.5} r={4.5} stroke={colors.ink} strokeWidth={1.6} />
+                <Path d="M10.5 10.5L14 14" stroke={colors.ink} strokeWidth={1.6} strokeLinecap="round" />
+              </Svg>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.collBtn}
+              onPress={() => Alert.alert('Collections', 'Plus版でCollectionsを無制限に作成できます。')}
+              activeOpacity={0.8}
+            >
+              <Svg width={12} height={12} viewBox="0 0 12 12" fill="none">
+                <Path d="M6 1v10M1 6h10" stroke={colors.accent} strokeWidth={1.8} strokeLinecap="round" />
+              </Svg>
+              <Text style={styles.collBtnText}>Collection</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Search */}
+      {showSearch ? (
+        <View style={styles.searchRow}>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="タイトル、メモ、学びで検索"
+            placeholderTextColor={colors.inkMuted}
+            style={styles.searchInput}
+            autoFocus
+          />
+          {query.length > 0 ? (
+            <TouchableOpacity onPress={() => setQuery('')} style={styles.clearBtn}>
+              <Text style={styles.clearText}>✕</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
+      {/* Stats */}
+      <AchievementSummary total={myTips.length} week={weekCount} streak={streakDays} />
+
+      {/* Knowledge Map */}
+      <KnowledgeMap
+        categories={knowledgeCategories}
+        totalCount={myTips.length}
+        weekCount={weekCount}
+        showPlusButton
+        onCategoryPress={(name) =>
+          setSelectedCategory((prev) => (prev === name ? null : name))
+        }
+      />
+
+      {/* Collections */}
+      <View style={styles.sec}>
+        <View style={styles.secHeader}>
+          <View>
+            <Text style={styles.secTitle}>Collections</Text>
+            <Text style={styles.secSub}>残しておきたいTipsをテーマごとに整理</Text>
+          </View>
+          <TouchableOpacity activeOpacity={0.7}>
+            <Text style={styles.secLink}>すべて見る</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.collRow}>
+          {COLLECTIONS.map((coll) => {
+            const count = collectionCounts[coll.id] ?? 0;
+            const isActive = !coll.locked && selectedCollection === coll.id;
+            return (
+              <TouchableOpacity
+                key={coll.id}
+                style={[styles.collChip, isActive && styles.collChipActive, coll.locked && styles.collChipLocked]}
+                onPress={() => {
+                  if (coll.locked) {
+                    Alert.alert('MoreX Plus', 'Plus版でCollectionsを無制限に作成できます。');
+                    return;
+                  }
+                  setSelectedCollection(coll.id);
+                  setSelectedCategory(null);
+                }}
+                activeOpacity={coll.locked ? 0.6 : 0.8}
+              >
+                <Text style={styles.collIcon}>{coll.icon}</Text>
+                <Text style={[styles.collName, isActive && styles.collNameActive]}>{coll.name}</Text>
+                {coll.locked ? (
+                  <View style={styles.plusBadge}>
+                    <Text style={styles.plusBadgeText}>Plus</Text>
+                  </View>
+                ) : (
+                  <Text style={[styles.collCount, isActive && styles.collCountActive]}>{count}件</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {/* Category Growth */}
+      <CategoryBarChart categories={knowledgeCategories} title="カテゴリ別蓄積" subtitle="MyTipsに残した知識" />
+
+      {/* Category filter chip */}
+      {selectedCategory ? (
+        <View style={styles.catFilterRow}>
+          <Text style={styles.catFilterLabel}>{selectedCategory}</Text>
+          <TouchableOpacity onPress={() => setSelectedCategory(null)}>
+            <Text style={styles.catFilterClear}>すべて表示</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* MyTips List */}
+      <View style={styles.sec}>
+        <View style={styles.listHeader}>
+          <View style={styles.listHeaderLeft}>
+            <Text style={styles.listTitle}>MyTips一覧</Text>
+            <Text style={styles.listCount}>{filteredTips.length}件</Text>
+          </View>
+          <TouchableOpacity activeOpacity={0.7}>
+            <Text style={styles.listSort}>新しい順 ▾</Text>
+          </TouchableOpacity>
+        </View>
+        {filteredTips.length === 0 ? (
+          <View style={styles.emptySmall}>
+            <Text style={styles.emptySmallText}>該当するTipsがありません</Text>
+          </View>
+        ) : (
+          filteredTips.map((tip) => <MyTipsCard key={tip.id} tip={tip} />)
+        )}
+      </View>
+
+      {/* Plus Banner */}
+      <PlusBanner />
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
-  content: { gap: spacing.md, padding: spacing.lg, paddingBottom: 110 },
+  content: { gap: spacing.md, paddingBottom: 110 },
 
-  categoryHeader: {
+  // Header
+  header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.xs },
+  headerRow: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
+  headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
+  headerSub: { color: colors.inkMuted, fontSize: 12 },
+  headerActions: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, paddingTop: 4 },
+  iconBtn: {
     alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 17,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
   },
-  categoryTitle: { color: colors.ink, fontSize: 15, fontWeight: '700' },
-  clearFilter: { color: colors.accent, fontSize: 13, fontWeight: '600' },
-
-  countRow: {
+  collBtn: {
     alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: 20,
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 2,
+    gap: 4,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
   },
-  countText: { color: colors.inkMuted, fontSize: 12, fontWeight: '600' },
-  sortLabel: { color: colors.inkMuted, fontSize: 11 },
+  collBtnText: { color: colors.accent, fontSize: 12, fontWeight: '600' },
 
-  emptyWrap: { gap: spacing.md },
-
-  // Motivational hero card
-  heroCard: {
-    borderRadius: radius.xl,
-    gap: spacing.sm,
-    overflow: 'hidden',
-    padding: spacing.xl,
-    paddingBottom: 28,
-    ...shadow.button,
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    elevation: 6,
-  },
-  heroGlowBlob: {
-    backgroundColor: 'rgba(99,102,241,0.22)',
-    borderRadius: 60,
-    height: 120,
-    position: 'absolute',
-    right: -20,
-    top: -20,
-    width: 120,
-  },
-  heroEyebrow: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  heroTitle: {
-    color: '#ffffff',
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    lineHeight: 36,
-  },
-  heroBody: {
-    color: 'rgba(255,255,255,0.62)',
-    fontSize: 13,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-
-  // 3-step flow
-  flowCard: {
+  // Search
+  searchRow: {
     alignItems: 'center',
     backgroundColor: colors.bgElevated,
-    borderRadius: radius.xl,
+    borderRadius: radius.md,
     flexDirection: 'row',
-    justifyContent: 'center',
-    padding: spacing.lg,
-    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    padding: spacing.sm + 2,
+    paddingLeft: spacing.md,
+    ...shadow.cardSoft,
+  },
+  searchInput: { color: colors.ink, flex: 1, fontSize: 13, paddingVertical: 2 },
+  clearBtn: { padding: 4 },
+  clearText: { color: colors.inkMuted, fontSize: 13, fontWeight: '600' },
+
+  // Section
+  sec: { gap: spacing.sm },
+  secHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: spacing.md },
+  secTitle: { color: colors.ink, fontSize: 13, fontWeight: '700' },
+  secSub: { color: colors.inkMuted, fontSize: 11, marginTop: 2 },
+  secLink: { color: colors.accent, fontSize: 12, fontWeight: '600', paddingTop: 2 },
+
+  // Collections
+  collRow: { gap: 9, paddingHorizontal: spacing.md, paddingBottom: 2 },
+  collChip: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.bgElevated,
+    borderRadius: 14,
+    minWidth: 82,
+    padding: 11,
+    paddingBottom: 10,
+    ...shadow.cardSoft,
+  },
+  collChipActive: { backgroundColor: colors.accent },
+  collChipLocked: { opacity: 0.65 },
+  collIcon: { fontSize: 17, lineHeight: 22, marginBottom: 6 },
+  collName: { color: colors.ink, fontSize: 11.5, fontWeight: '700', lineHeight: 16, marginBottom: 2 },
+  collNameActive: { color: '#ffffff' },
+  collCount: { color: colors.inkMuted, fontSize: 10 },
+  collCountActive: { color: 'rgba(255,255,255,0.7)' },
+  plusBadge: {
+    backgroundColor: '#ff9500',
+    borderRadius: 6,
+    marginTop: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  plusBadgeText: { color: '#ffffff', fontSize: 9, fontWeight: '800' },
+
+  // Category filter
+  catFilterRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+  },
+  catFilterLabel: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  catFilterClear: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+
+  // List header
+  listHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+  },
+  listHeaderLeft: { alignItems: 'center', flexDirection: 'row', gap: 5 },
+  listTitle: { color: colors.ink, fontSize: 13, fontWeight: '700' },
+  listCount: { color: colors.inkMuted, fontSize: 12, fontWeight: '500' },
+  listSort: { color: colors.accent, fontSize: 11.5, fontWeight: '600' },
+
+  // MyTips cards
+  tipCard: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    marginHorizontal: spacing.md,
+    overflow: 'hidden',
     ...shadow.card,
   },
-  flowItem: {
+  tipTopBar: { height: 3 },
+  tipBody: { padding: 12, paddingTop: 12, gap: spacing.sm },
+  tipRow1: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  srcChip: { borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 },
+  srcChipText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.1 },
+  tipStar: { padding: 2 },
+  tipStarFilled: { color: '#ffcc00', fontSize: 17 },
+  tipStarEmpty: { color: colors.inkMuted, fontSize: 17 },
+  tipTitle: { color: colors.ink, fontSize: 14, fontWeight: '700', letterSpacing: -0.2, lineHeight: 20 },
+  metaSection: { gap: 3 },
+  metaLabel: { color: colors.accent, fontSize: 10.5, fontWeight: '700' },
+  metaText: { color: colors.inkSub, fontSize: 12, lineHeight: 19 },
+  tipDate: { color: colors.inkMuted, fontSize: 10.5, marginTop: 2 },
+  tipFoot: {
     alignItems: 'center',
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingTop: spacing.sm,
   },
-  flowIcon: {
+  reuseBtn: {
     alignItems: 'center',
-    borderRadius: radius.md,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
+    backgroundColor: colors.accentSoft,
+    borderRadius: 10,
+    flexDirection: 'row',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingVertical: 7,
   },
-  flowIconText: { fontSize: 18 },
-  flowLabel: { color: colors.inkSub, fontSize: 11, fontWeight: '600' },
-  flowArrow: { color: colors.border, fontSize: 16, fontWeight: '700', marginHorizontal: 2 },
+  reuseBtnText: { color: colors.accent, fontSize: 12.5, fontWeight: '700' },
+  detailBtn: { color: colors.inkMuted, fontSize: 11 },
 
-  // Zero-state KPI preview
-  kpiRow: {
+  // Plus Banner
+  plusBanner: {
+    alignItems: 'center',
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: spacing.md,
+    padding: 15,
+    paddingRight: 16,
+  },
+  plusIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  plusTextBlock: { flex: 1 },
+  plusTitle: { color: '#ffffff', fontSize: 12.5, fontWeight: '700', marginBottom: 2 },
+  plusDesc: { color: 'rgba(255,255,255,0.45)', fontSize: 11, lineHeight: 16 },
+  plusCta: {
+    backgroundColor: '#ff9500',
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+  },
+  plusCtaText: { color: '#ffffff', fontSize: 11.5, fontWeight: '700' },
+
+  // Empty state
+  emptyCard: {
+    alignItems: 'center',
     backgroundColor: colors.bgElevated,
     borderRadius: radius.xl,
-    flexDirection: 'row',
-    ...shadow.cardSoft,
-    overflow: 'hidden',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    padding: spacing.xxl,
+    ...shadow.card,
   },
-  kpiItem: {
-    alignItems: 'center',
-    flex: 1,
-    gap: 4,
-    paddingVertical: spacing.md,
-  },
-  kpiValue: {
-    color: colors.inkMuted,
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  kpiLabel: { color: colors.inkMuted, fontSize: 10, fontWeight: '600' },
-
-  libraryButton: {
-    alignItems: 'center',
+  emptyIcon: { fontSize: 40, marginBottom: spacing.xs },
+  emptyTitle: { color: colors.ink, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  emptyBody: { color: colors.inkSub, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  emptyBtn: {
     backgroundColor: colors.ink,
-    borderRadius: radius.lg,
-    paddingVertical: 16,
-    ...shadow.button,
+    borderRadius: radius.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: 24,
+    paddingVertical: 13,
   },
-  libraryButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
+  emptyBtnText: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
+
+  // Inline empty
+  emptySmall: { alignItems: 'center', paddingVertical: spacing.xl },
+  emptySmallText: { color: colors.inkMuted, fontSize: 13 },
 });

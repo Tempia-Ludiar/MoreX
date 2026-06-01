@@ -59,13 +59,14 @@ type Props = {
   categories: KnowledgeCategory[];
   totalCount: number;
   weekCount: number;
+  showPlusButton?: boolean;
   onCategoryPress: (name: string) => void;
 };
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle as any);
 const AnimatedLine = Animated.createAnimatedComponent(Line as any);
 
-export function KnowledgeMap({ categories, totalCount, weekCount, onCategoryPress }: Props) {
+export function KnowledgeMap({ categories, totalCount, weekCount, showPlusButton, onCategoryPress }: Props) {
   const [rotDeg, setRotDeg] = useState(0);
   const startTime = useRef(Date.now());
   const blinkAnim = useRef(new Animated.Value(1)).current;
@@ -116,14 +117,20 @@ export function KnowledgeMap({ categories, totalCount, weekCount, onCategoryPres
           <Animated.View style={[styles.dot, { opacity: blinkAnim }]} />
           <Text style={styles.indText}>KNOWLEDGE MAP</Text>
         </View>
-        <View style={styles.zoomRow}>
-          <TouchableOpacity style={styles.zoomBtn}>
-            <Text style={styles.zoomText}>+</Text>
+        {showPlusButton ? (
+          <TouchableOpacity style={styles.plusBtn} activeOpacity={0.8}>
+            <Text style={styles.plusBtnText}>✦ Unlock Advanced Map</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.zoomBtn}>
-            <Text style={styles.zoomText}>−</Text>
-          </TouchableOpacity>
-        </View>
+        ) : (
+          <View style={styles.zoomRow}>
+            <TouchableOpacity style={styles.zoomBtn}>
+              <Text style={styles.zoomText}>+</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.zoomBtn}>
+              <Text style={styles.zoomText}>−</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* SVG map */}
@@ -308,6 +315,20 @@ const styles = StyleSheet.create({
   zoomRow: {
     flexDirection: 'row',
     gap: 4,
+  },
+  plusBtn: {
+    backgroundColor: 'rgba(255,200,50,0.12)',
+    borderColor: 'rgba(255,200,50,0.3)',
+    borderRadius: 10,
+    borderWidth: 0.5,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  plusBtnText: {
+    color: '#ffd555',
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   zoomBtn: {
     alignItems: 'center',

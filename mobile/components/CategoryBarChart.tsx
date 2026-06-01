@@ -9,9 +9,11 @@ type Category = {
 
 type Props = {
   categories: Category[];
+  title?: string;
+  subtitle?: string;
 };
 
-export function CategoryBarChart({ categories }: Props) {
+export function CategoryBarChart({ categories, title, subtitle }: Props) {
   if (categories.length === 0) return null;
 
   const sorted = [...categories].sort((a, b) => b.count - a.count).slice(0, 7);
@@ -19,7 +21,10 @@ export function CategoryBarChart({ categories }: Props) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>カテゴリ別実行数</Text>
+      <View style={styles.chartHeader}>
+        <Text style={styles.title}>{title ?? 'カテゴリ別実行数'}</Text>
+        {subtitle ? <Text style={styles.chartSubtitle}>{subtitle}</Text> : null}
+      </View>
       <View style={styles.bars}>
         {sorted.map((cat) => {
           const pct = maxCount > 0 ? (cat.count / maxCount) * 100 : 0;
@@ -51,12 +56,19 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadow.card,
   },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
   title: {
-    color: colors.inkSub,
-    fontSize: 11,
+    color: colors.ink,
+    fontSize: 12.5,
     fontWeight: '700',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
+  },
+  chartSubtitle: {
+    color: colors.inkMuted,
+    fontSize: 10,
   },
   bars: { gap: spacing.sm },
   barRow: {
