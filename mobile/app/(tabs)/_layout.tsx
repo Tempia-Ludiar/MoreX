@@ -1,7 +1,7 @@
 import { Platform, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { BlurView } from 'expo-blur';
-import Svg, { Circle, Line, Path, Polygon } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Polygon, Rect } from 'react-native-svg';
 import { colors } from '@/theme';
 
 function AddIcon({ color, size }: { color: string; size: number }) {
@@ -14,11 +14,11 @@ function AddIcon({ color, size }: { color: string; size: number }) {
   );
 }
 
-function LibraryIcon({ color, size }: { color: string; size: number }) {
+function TodoIcon({ color, size }: { color: string; size: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <Svg width={size} height={size} viewBox="0 0 22 22" fill="none">
+      <Rect x="2.5" y="2.5" width="17" height="17" rx="4.5" stroke={color} strokeWidth="1.5" />
+      <Path d="M6.5 11.5l3 3 5.5-6.5" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -88,9 +88,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="board"
         options={{
-          title: 'Library',
-          tabBarActiveTintColor: colors.pink,
-          tabBarIcon: ({ color, size }) => <LibraryIcon color={color} size={size} />,
+          title: 'Todo',
+          tabBarActiveTintColor: colors.accent,
+          tabBarIcon: ({ color, size }) => <TodoIcon color={color} size={size} />,
         }}
       />
       <Tabs.Screen
