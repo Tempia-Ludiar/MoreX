@@ -10,7 +10,7 @@ create table if not exists public.tips (
   source_url text,
   memo text,
   category text,
-  status text not null default 'todo' check (status in ('todo', 'doing', 'done', 'trash')),
+  status text not null default 'todo' check (status in ('todo', 'done', 'trash')),
   scheduled_date date,
   priority integer not null default 50 check (priority between 1 and 100),
   after_memo text,

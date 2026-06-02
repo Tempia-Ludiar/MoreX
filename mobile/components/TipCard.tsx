@@ -14,7 +14,6 @@ type Props = {
 function StatusBadge({ status }: { status: Tip['status'] }) {
   const map: Record<string, { bg: string; text: string; label: string }> = {
     todo:  { bg: '#eef0ff', text: '#4f46e5', label: '未実行' },
-    doing: { bg: '#eef0ff', text: '#4f46e5', label: '未実行' },
     done:  { bg: '#e6f9f0', text: '#0a8c5a', label: '実行済み' },
     trash: { bg: '#f5f5f7', text: '#6b6b80', label: '不要' },
   };

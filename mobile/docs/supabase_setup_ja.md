@@ -33,6 +33,10 @@
 `supabase/migrations/20260602_sample_tips_flag.sql` の内容をSQL Editorへ貼り付け、
 一度だけ実行してください。LibraryからサンプルTipsだけを削除できるようになります。
 
+続けて `supabase/migrations/20260603_remove_doing_status.sql` も実行してください。
+以前の「保留」Tipsが「未実行」へ戻り、今後は未実行・実行済み・不要の
+3ステータスだけになります。
+
 ## 3. アプリで確認する
 
 1. MoreXへログインします。

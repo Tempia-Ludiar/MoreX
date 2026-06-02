@@ -1,4 +1,4 @@
-export type TipStatus = 'todo' | 'doing' | 'done' | 'trash';
+export type TipStatus = 'todo' | 'done' | 'trash';
 
 export type Tip = {
   id: string;

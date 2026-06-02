@@ -16,16 +16,15 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { EmptyState } from '@/components/EmptyState';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { deleteSampleTips, getTips, updateTip } from '@/lib/tipsStorage';
-import { Tip, TipStatus } from '@/types/tip';
+import { Tip } from '@/types/tip';
 
 const all = 'all' as const;
-type StatusFilter = TipStatus | typeof all;
+type StatusFilter = 'todo' | 'done' | typeof all;
 
 const KNOWN_SOURCES = ['ChatGPT', 'Claude', 'Codex', 'X', 'YouTube', 'note', 'Web'] as const;
 
 const STATUS_DISPLAY: Record<string, { label: string; bg: string; text: string }> = {
-  todo:  { label: 'Todo', bg: colors.accentSoft,  text: colors.accentDeep },
-  doing: { label: '保留', bg: colors.orangeSoft,  text: colors.orange },
+  todo:  { label: '未実行', bg: colors.accentSoft,  text: colors.accentDeep },
   done:  { label: '完了', bg: colors.greenSoft,   text: '#1a8a3c' },
   trash: { label: '不要', bg: '#f5f5f7',          text: colors.inkMuted },
 };
@@ -86,7 +85,7 @@ function HeroCard({ tip }: { tip: Tip }) {
 }
 
 // ── Todo Card ────────────────────────────────────────────────
-type CardAction = 'done' | 'todo' | 'doing' | 'trash' | 'mytips';
+type CardAction = 'done' | 'todo' | 'trash' | 'mytips';
 
 function TodoCard({ tip, onAction }: { tip: Tip; onAction: (action: CardAction) => void }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -154,9 +153,6 @@ function TodoCard({ tip, onAction }: { tip: Tip; onAction: (action: CardAction) 
           <TouchableOpacity style={[styles.act, styles.actDone]} onPress={() => onAction('done')} activeOpacity={0.8}>
             <Text style={styles.actDoneText}>✓ 完了</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.act, styles.actHold]} onPress={() => onAction('doing')} activeOpacity={0.8}>
-            <Text style={styles.actHoldText}>⏸ 保留</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={[styles.act, styles.actDel]} onPress={() => onAction('trash')} activeOpacity={0.8}>
             <Text style={styles.actDelText}>✕ 削除</Text>
           </TouchableOpacity>
@@ -204,7 +200,7 @@ export default function TodoScreen() {
         },
       ]);
     } else {
-      await updateTip(tip.id, { status: action as TipStatus });
+      await updateTip(tip.id, { status: action });
       await load();
     }
   }, [load]);
@@ -237,7 +233,6 @@ export default function TodoScreen() {
   const statusCounts = useMemo(() => ({
     all:   visibleTips.length,
     todo:  visibleTips.filter((t) => t.status === 'todo').length,
-    doing: visibleTips.filter((t) => t.status === 'doing').length,
     done:  visibleTips.filter((t) => t.status === 'done').length,
   }), [visibleTips]);
 
@@ -261,14 +256,14 @@ export default function TodoScreen() {
       .sort((a, b) => b.priority - a.priority || b.createdAt.localeCompare(a.createdAt));
   }, [visibleTips, query, statusFilter, sourceFilter]);
 
-  const highTips  = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority >= 75), [filteredTips]);
-  const laterTips = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority < 75),  [filteredTips]);
-  const doneTips  = useMemo(() => filteredTips.filter((t) => t.status === 'done'),                      [filteredTips]);
+  const highTips = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority >= 75), [filteredTips]);
+  const mediumTips = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority >= 50 && t.priority < 75), [filteredTips]);
+  const lowTips = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority < 50), [filteredTips]);
+  const doneTips = useMemo(() => filteredTips.filter((t) => t.status === 'done'), [filteredTips]);
 
   const statusOptions: Array<{ key: StatusFilter; label: string; count: number }> = [
     { key: all,     label: 'すべて', count: statusCounts.all },
-    { key: 'todo',  label: 'Todo',   count: statusCounts.todo },
-    { key: 'doing', label: '保留',   count: statusCounts.doing },
+    { key: 'todo',  label: '未実行', count: statusCounts.todo },
     { key: 'done',  label: '完了',   count: statusCounts.done },
   ];
 
@@ -284,7 +279,7 @@ export default function TodoScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Todo</Text>
         <Text style={styles.headerSub}>
-          保存中 {visibleTips.length}件・未実行 {statusCounts.todo + statusCounts.doing}件
+          保存中 {visibleTips.length}件・未実行 {statusCounts.todo}件
         </Text>
       </View>
 
@@ -375,7 +370,7 @@ export default function TodoScreen() {
             <View style={styles.bucket}>
               <View style={styles.bucketHeader}>
                 <View style={[styles.bucketDot, { backgroundColor: colors.orange }]} />
-                <Text style={[styles.bucketLabel, { color: colors.orange }]}>HIGH PRIORITY</Text>
+                <Text style={[styles.bucketLabel, { color: colors.orange }]}>優先度：高</Text>
                 <Text style={styles.bucketCount}>{highTips.length}件</Text>
               </View>
               {highTips.map((tip) => (
@@ -384,14 +379,27 @@ export default function TodoScreen() {
             </View>
           )}
 
-          {laterTips.length > 0 && (
+          {mediumTips.length > 0 && (
+            <View style={styles.bucket}>
+              <View style={styles.bucketHeader}>
+                <View style={[styles.bucketDot, { backgroundColor: colors.yellow }]} />
+                <Text style={[styles.bucketLabel, { color: colors.yellow }]}>優先度：中</Text>
+                <Text style={styles.bucketCount}>{mediumTips.length}件</Text>
+              </View>
+              {mediumTips.map((tip) => (
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+              ))}
+            </View>
+          )}
+
+          {lowTips.length > 0 && (
             <View style={styles.bucket}>
               <View style={styles.bucketHeader}>
                 <View style={[styles.bucketDot, { backgroundColor: '#3a84d0' }]} />
-                <Text style={[styles.bucketLabel, { color: '#3a84d0' }]}>LATER</Text>
-                <Text style={styles.bucketCount}>{laterTips.length}件</Text>
+                <Text style={[styles.bucketLabel, { color: '#3a84d0' }]}>優先度：低</Text>
+                <Text style={styles.bucketCount}>{lowTips.length}件</Text>
               </View>
-              {laterTips.map((tip) => (
+              {lowTips.map((tip) => (
                 <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
               ))}
             </View>
@@ -401,7 +409,7 @@ export default function TodoScreen() {
             <View style={styles.bucket}>
               <View style={styles.bucketHeader}>
                 <View style={[styles.bucketDot, { backgroundColor: colors.green }]} />
-                <Text style={[styles.bucketLabel, { color: colors.green }]}>DONE</Text>
+                <Text style={[styles.bucketLabel, { color: colors.green }]}>実行済み</Text>
                 <Text style={styles.bucketCount}>{doneTips.length}件</Text>
               </View>
               {doneTips.map((tip) => (
@@ -599,8 +607,6 @@ const styles = StyleSheet.create({
   act: { alignItems: 'center', borderRadius: radius.sm, flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 5 },
   actDone: { backgroundColor: colors.greenSoft },
   actDoneText: { color: '#1a8a3c', fontSize: 11, fontWeight: '600' },
-  actHold: { backgroundColor: colors.orangeSoft },
-  actHoldText: { color: colors.orange, fontSize: 11, fontWeight: '600' },
   actDel: { backgroundColor: '#fff1f0' },
   actDelText: { color: colors.danger, fontSize: 11, fontWeight: '600' },
   actMytips: { backgroundColor: colors.accentSoft },

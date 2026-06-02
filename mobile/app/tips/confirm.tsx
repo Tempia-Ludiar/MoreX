@@ -23,9 +23,9 @@ export default function ConfirmTipScreen() {
     if (!draft || saving) return;
     setSaving(true);
     try {
-      const tip = await createTip(draft);
+      await createTip(draft);
       await clearPendingTipDraft();
-      router.replace({ pathname: '/tips/saved', params: { id: tip.id } });
+      router.replace('/tips/saved');
     } catch (error) {
       Alert.alert('保存できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
       setSaving(false);

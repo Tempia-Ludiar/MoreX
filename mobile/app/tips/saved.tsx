@@ -1,10 +1,8 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { colors, radius, shadow, spacing } from '@/theme';
 
 export default function TipSavedScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
-
   return (
     <View style={styles.screen}>
       <View style={styles.iconCircle}>
@@ -19,11 +17,6 @@ export default function TipSavedScreen() {
       <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/(tabs)/board')} activeOpacity={0.82}>
         <Text style={styles.secondaryButtonText}>Libraryへ進む</Text>
       </TouchableOpacity>
-      {id ? (
-        <TouchableOpacity style={styles.linkButton} onPress={() => router.replace(`/tips/${id}`)} activeOpacity={0.72}>
-          <Text style={styles.linkText}>保存したTipsを見る</Text>
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 }
@@ -38,6 +31,4 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
   secondaryButton: { alignItems: 'center', backgroundColor: colors.bgElevated, borderColor: colors.ink, borderRadius: radius.lg, borderWidth: 1.5, marginTop: spacing.md, paddingVertical: 15, width: '100%' },
   secondaryButtonText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
-  linkButton: { marginTop: spacing.lg, padding: spacing.sm },
-  linkText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
 });

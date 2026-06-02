@@ -23,10 +23,11 @@ import { Tip } from '@/types/tip';
 
 // ─── View mode ───────────────────────────────────────────────────────────────
 
-function ViewMode({ tip, onEdit, onToggleStatus, onAfterMemoSave }: {
+function ViewMode({ tip, onEdit, onToggleStatus, onAddToMyTips, onAfterMemoSave }: {
   tip: Tip;
   onEdit: () => void;
   onToggleStatus: () => void;
+  onAddToMyTips: () => Promise<void>;
   onAfterMemoSave: (memo: string) => void;
 }) {
   const priority = clampPriority(tip.priority);
@@ -35,6 +36,7 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAfterMemoSave }: {
   const isTrash = tip.status === 'trash';
   const [afterMemo, setAfterMemo] = useState(tip.afterMemo ?? '');
   const [afterMemoSaving, setAfterMemoSaving] = useState(false);
+  const [myTipsSaving, setMyTipsSaving] = useState(false);
 
   useEffect(() => { setAfterMemo(tip.afterMemo ?? ''); }, [tip.afterMemo]);
 
@@ -43,6 +45,16 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAfterMemoSave }: {
     setAfterMemoSaving(true);
     await onAfterMemoSave(afterMemo);
     setAfterMemoSaving(false);
+  };
+
+  const addToMyTips = async () => {
+    if (tip.isInMyTips || myTipsSaving) return;
+    setMyTipsSaving(true);
+    try {
+      await onAddToMyTips();
+    } finally {
+      setMyTipsSaving(false);
+    }
   };
 
   const createdDate = new Date(tip.createdAt).toLocaleDateString('ja-JP', {
@@ -55,9 +67,6 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAfterMemoSave }: {
       <View style={styles.viewHeader}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
           <Text style={styles.backText}>← 戻る</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.editBtn} onPress={onEdit} activeOpacity={0.82}>
-          <Text style={styles.editBtnText}>編集する</Text>
         </TouchableOpacity>
       </View>
 
@@ -94,7 +103,7 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAfterMemoSave }: {
           activeOpacity={0.82}
         >
           <Text style={[styles.statusBarText, isDone && styles.statusBarTextDone]}>
-            {isDone ? '✓  実行済み  — タップで未実行に戻す' : '○  未実行  — タップして実行済みにする'}
+            {isDone ? '✓  実行済み  — タップで未実行に戻す' : '✓  実行済みにする'}
           </Text>
         </TouchableOpacity>
       ) : (
@@ -157,6 +166,19 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAfterMemoSave }: {
       <TouchableOpacity style={styles.editCta} onPress={onEdit} activeOpacity={0.82}>
         <Text style={styles.editCtaText}>✏️  このTipsを編集する</Text>
       </TouchableOpacity>
+
+      {isDone && !isTrash ? (
+        <TouchableOpacity
+          style={[styles.myTipsCta, tip.isInMyTips && styles.myTipsCtaAdded]}
+          onPress={addToMyTips}
+          activeOpacity={tip.isInMyTips ? 1 : 0.82}
+          disabled={tip.isInMyTips || myTipsSaving}
+        >
+          <Text style={[styles.myTipsCtaText, tip.isInMyTips && styles.myTipsCtaTextAdded]}>
+            {tip.isInMyTips ? '★  MyTipsに追加済み' : myTipsSaving ? '追加中...' : '★  MyTipsに追加する'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
     </ScrollView>
   );
 }
@@ -437,6 +459,16 @@ export default function TipDetailScreen() {
     if (updated) setTip(updated);
   }, [tip]);
 
+  const handleAddToMyTips = useCallback(async () => {
+    if (!tip || tip.isInMyTips) return;
+    try {
+      const updated = await updateTip(tip.id, { isInMyTips: true });
+      if (updated) setTip(updated);
+    } catch (error) {
+      Alert.alert('MyTipsに追加できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+    }
+  }, [tip]);
+
   const handleEditSave = useCallback(async (patch: Partial<Tip>) => {
     if (!tip) return;
     const updated = await updateTip(tip.id, patch);
@@ -473,6 +505,7 @@ export default function TipDetailScreen() {
       tip={tip}
       onEdit={() => setIsEditing(true)}
       onToggleStatus={handleToggleStatus}
+      onAddToMyTips={handleAddToMyTips}
       onAfterMemoSave={handleAfterMemoSave}
     />
   );
@@ -498,15 +531,6 @@ const styles = StyleSheet.create({
   },
   backBtn: { paddingVertical: 6, paddingRight: spacing.sm },
   backText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
-  editBtn: {
-    backgroundColor: colors.ink,
-    borderRadius: radius.pill,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    ...shadow.button,
-  },
-  editBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
-
   heroImage: {
     borderRadius: radius.xl,
     height: 220,
@@ -636,6 +660,15 @@ const styles = StyleSheet.create({
     ...shadow.cardSoft,
   },
   editCtaText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  myTipsCta: {
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    paddingVertical: 15,
+  },
+  myTipsCtaAdded: { backgroundColor: colors.bgElevated },
+  myTipsCtaText: { color: colors.accentDeep, fontSize: 15, fontWeight: '700' },
+  myTipsCtaTextAdded: { color: colors.inkMuted },
 
   // Edit header
   editHeader: {

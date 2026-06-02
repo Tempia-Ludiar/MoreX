@@ -16,7 +16,7 @@ type TipRow = {
   source_url: string | null;
   memo: string | null;
   category: string | null;
-  status: Tip['status'];
+  status: Tip['status'] | 'doing';
   scheduled_date: string | null;
   priority: number;
   after_memo: string | null;
@@ -45,7 +45,7 @@ const sampleDrafts: TipDraft[] = [
     content: '設計書、禁止事項、画面一覧、データ型、完了条件をまとめてからCodexに渡すと、実装のブレが減る。',
     memo: 'MoreX自身の開発フローに近い。仕様書の粒度チェックに使う。',
     category: 'Codex',
-    status: 'doing',
+    status: 'todo',
     scheduledDate: addDaysKey(3),
     priority: 86,
     isSample: true,
@@ -102,7 +102,7 @@ async function rowToTip(row: TipRow): Promise<Tip> {
     sourceUrl: row.source_url ?? undefined,
     memo: row.memo ?? undefined,
     category: row.category ?? undefined,
-    status: row.status,
+    status: row.status === 'doing' ? 'todo' : row.status,
     scheduledDate: row.scheduled_date ?? undefined,
     priority: row.priority,
     afterMemo: row.after_memo ?? undefined,
