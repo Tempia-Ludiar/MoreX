@@ -203,17 +203,22 @@ function EditMode({ tip, allTips, onSave, onCancel }: {
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
-    await onSave({
-      title: title.trim() || undefined,
-      memo: memo.trim() || undefined,
-      content: content.trim() || undefined,
-      sourceUrl: sourceUrl.trim() || undefined,
-      category: category.trim() || undefined,
-      imageUri,
-      priority,
-      status,
-    });
-    setSaving(false);
+    try {
+      await onSave({
+        title: title.trim() || undefined,
+        memo: memo.trim() || undefined,
+        content: content.trim() || undefined,
+        sourceUrl: sourceUrl.trim() || undefined,
+        category: category.trim() || undefined,
+        imageUri,
+        priority,
+        status,
+      });
+    } catch (error) {
+      Alert.alert('保存できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
@@ -408,9 +413,13 @@ export default function TipDetailScreen() {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [t, all] = await Promise.all([getTipById(id), getTips()]);
-    setTip(t);
-    setAllTips(all);
+    try {
+      const [t, all] = await Promise.all([getTipById(id), getTips()]);
+      setTip(t);
+      setAllTips(all);
+    } catch (error) {
+      Alert.alert('クラウド保存を確認してください', error instanceof Error ? error.message : 'Tipsを読み込めませんでした。');
+    }
   }, [id]);
 
   useEffect(() => { load(); }, [load]);

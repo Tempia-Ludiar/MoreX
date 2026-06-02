@@ -177,7 +177,13 @@ export default function MyTipsScreen() {
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState('');
 
-  const load = useCallback(async () => setTips(await getTips()), []);
+  const load = useCallback(async () => {
+    try {
+      setTips(await getTips());
+    } catch (error) {
+      Alert.alert('クラウド保存を確認してください', error instanceof Error ? error.message : 'Tipsを読み込めませんでした。');
+    }
+  }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const myTips = useMemo(

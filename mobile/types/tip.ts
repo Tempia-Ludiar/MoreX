@@ -5,6 +5,7 @@ export type Tip = {
   title?: string;
   content?: string;
   imageUri?: string;
+  imagePath?: string;
   sourceUrl?: string;
   memo?: string;
   category?: string;

@@ -36,9 +36,13 @@ export default function SettingsScreen() {
   };
 
   const reset = async () => {
-    await clearTips();
-    setConfirmVisible(false);
-    Alert.alert('削除完了', 'すべてのデータを削除しました。');
+    try {
+      await clearTips();
+      setConfirmVisible(false);
+      Alert.alert('削除完了', 'ログイン中のアカウントのデータを削除しました。');
+    } catch (error) {
+      Alert.alert('削除できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+    }
   };
 
   return (

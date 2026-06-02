@@ -33,6 +33,13 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-or-publishable-key
 
 `service_role` key はアプリに入れないでください。
 
+### Tipsクラウド保存の初期設定
+
+Supabase DashboardのSQL Editorを開き、`supabase/migrations/20260601_cloud_tips.sql`
+の内容を貼り付けて一度だけ実行してください。Tips用テーブル、ユーザーごとの
+アクセス制限（RLS）、画像保存用の非公開Storage bucketが作成されます。
+詳しい手順は `docs/supabase_setup_ja.md` を参照してください。
+
 ## Web公開
 
 このアプリはGitHubに載せて、VercelなどでWeb公開できます。Vercelでは次の設定にします。
@@ -54,7 +61,7 @@ npm run export:web
 
 - Expo / React Native / TypeScript / Expo Router構成
 - Bottom Tab: Add / Library / Playbook / Settings
-- AsyncStorageによるTips永続化
+- Supabaseによるユーザー別Tips永続化
 - 初回起動時のサンプルTips 3件投入
 - スクリーンショット画像選択
 - Add画面でのTips作成専用フォーム
@@ -71,7 +78,6 @@ npm run export:web
 
 - X API連携
 - AI要約 / AI自動分類
-- Tipsのクラウド同期
 - OCR検索
 - 通知 / リマインダー本実装
 - 課金処理
