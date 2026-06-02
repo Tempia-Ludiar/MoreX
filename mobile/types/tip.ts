@@ -14,6 +14,7 @@ export type Tip = {
   priority: number;
   afterMemo?: string;
   isInMyTips?: boolean;
+  isSample?: boolean;
   createdAt: string;
   updatedAt: string;
 };

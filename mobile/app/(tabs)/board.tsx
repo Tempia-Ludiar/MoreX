@@ -15,7 +15,7 @@ import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { EmptyState } from '@/components/EmptyState';
 import { colors, radius, shadow, spacing } from '@/theme';
-import { getTips, updateTip } from '@/lib/tipsStorage';
+import { deleteSampleTips, getTips, updateTip } from '@/lib/tipsStorage';
 import { Tip, TipStatus } from '@/types/tip';
 
 const all = 'all' as const;
@@ -210,6 +210,29 @@ export default function TodoScreen() {
   }, [load]);
 
   const visibleTips = useMemo(() => tips.filter((t) => t.status !== 'trash'), [tips]);
+  const sampleTipCount = useMemo(() => tips.filter((t) => t.isSample).length, [tips]);
+
+  const confirmDeleteSamples = useCallback(() => {
+    Alert.alert(
+      'サンプルTipsを削除しますか?',
+      '最初から入っているサンプルTipsだけを削除します。あなたが追加したTipsは残ります。',
+      [
+        { text: 'キャンセル', style: 'cancel' },
+        {
+          text: '削除する',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteSampleTips();
+              await load();
+            } catch (error) {
+              Alert.alert('削除できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+            }
+          },
+        },
+      ],
+    );
+  }, [load]);
 
   const statusCounts = useMemo(() => ({
     all:   visibleTips.length,
@@ -264,6 +287,18 @@ export default function TodoScreen() {
           保存中 {visibleTips.length}件・未実行 {statusCounts.todo + statusCounts.doing}件
         </Text>
       </View>
+
+      {sampleTipCount > 0 ? (
+        <View style={styles.sampleCard}>
+          <View style={styles.sampleCopy}>
+            <Text style={styles.sampleTitle}>サンプルTipsが{sampleTipCount}件あります</Text>
+            <Text style={styles.sampleBody}>使い方を確認したら、まとめて削除できます。</Text>
+          </View>
+          <TouchableOpacity style={styles.sampleDeleteButton} onPress={confirmDeleteSamples} activeOpacity={0.78}>
+            <Text style={styles.sampleDeleteText}>サンプルTipsを削除</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* Hero */}
       {heroTip ? (
@@ -388,6 +423,30 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.xs },
   headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
   headerSub: { color: colors.inkMuted, fontSize: 12 },
+
+  // Sample tips
+  sampleCard: {
+    alignItems: 'center',
+    backgroundColor: colors.bgElevated,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    padding: spacing.md,
+    ...shadow.cardSoft,
+  },
+  sampleCopy: { flex: 1, gap: 3 },
+  sampleTitle: { color: colors.ink, fontSize: 12.5, fontWeight: '700' },
+  sampleBody: { color: colors.inkMuted, fontSize: 10.5, lineHeight: 15 },
+  sampleDeleteButton: {
+    backgroundColor: colors.dangerSoft,
+    borderRadius: radius.md,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  sampleDeleteText: { color: colors.danger, fontSize: 11, fontWeight: '700' },
 
   // Hero
   heroWrap: { marginHorizontal: spacing.md },

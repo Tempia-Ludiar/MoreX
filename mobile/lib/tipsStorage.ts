@@ -21,6 +21,7 @@ type TipRow = {
   priority: number;
   after_memo: string | null;
   is_in_my_tips: boolean;
+  is_sample: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -37,6 +38,7 @@ const sampleDrafts: TipDraft[] = [
     scheduledDate: todayKey(),
     priority: 78,
     afterMemo: '',
+    isSample: true,
   },
   {
     title: 'Codexに仕様書を渡して実装させるTips',
@@ -46,6 +48,7 @@ const sampleDrafts: TipDraft[] = [
     status: 'doing',
     scheduledDate: addDaysKey(3),
     priority: 86,
+    isSample: true,
   },
   {
     title: 'ChatGPTでKindle章構成を整理するTips',
@@ -55,6 +58,7 @@ const sampleDrafts: TipDraft[] = [
     status: 'todo',
     scheduledDate: addDaysKey(8),
     priority: 58,
+    isSample: true,
   },
 ];
 
@@ -65,6 +69,9 @@ function optionalValue(value: string | undefined) {
 function explainError(error: { message: string; code?: string | null }) {
   if (error.code === '42P01' || error.message.includes("Could not find the table 'public.tips'")) {
     return new Error('Tips用のクラウド保存先が未設定です。Supabase SQL Editorで supabase/migrations/20260601_cloud_tips.sql を実行してください。');
+  }
+  if (error.message.includes('is_sample')) {
+    return new Error('サンプルTips削除機能の初期設定が必要です。Supabase SQL Editorで supabase/migrations/20260602_sample_tips_flag.sql を実行してください。');
   }
   return new Error(`クラウド保存でエラーが発生しました: ${error.message}`);
 }
@@ -100,6 +107,7 @@ async function rowToTip(row: TipRow): Promise<Tip> {
     priority: row.priority,
     afterMemo: row.after_memo ?? undefined,
     isInMyTips: row.is_in_my_tips,
+    isSample: row.is_sample,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -119,6 +127,7 @@ function draftToRow(draft: TipDraft, userId: string, imagePath?: string) {
     priority: draft.priority ?? 50,
     after_memo: optionalValue(draft.afterMemo),
     is_in_my_tips: draft.isInMyTips ?? false,
+    is_sample: draft.isSample ?? false,
   };
 }
 
@@ -256,4 +265,23 @@ export async function clearTips(): Promise<void> {
     if (imageError) throw explainError(imageError);
   }
   await AsyncStorage.setItem(`${SEEDED_KEY_PREFIX}.${userId}`, 'true');
+}
+
+export async function deleteSampleTips(): Promise<void> {
+  const { data, error: selectError } = await supabase
+    .from('tips')
+    .select('image_path')
+    .eq('is_sample', true);
+  if (selectError) throw explainError(selectError);
+
+  const { error } = await supabase.from('tips').delete().eq('is_sample', true);
+  if (error) throw explainError(error);
+
+  const imagePaths = (data as Array<{ image_path: string | null }>)
+    .map((row) => row.image_path)
+    .filter((path): path is string => Boolean(path));
+  if (imagePaths.length > 0) {
+    const { error: imageError } = await supabase.storage.from(IMAGES_BUCKET).remove(imagePaths);
+    if (imageError) throw explainError(imageError);
+  }
 }

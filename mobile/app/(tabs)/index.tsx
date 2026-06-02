@@ -18,7 +18,8 @@ import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
 import { categories } from '@/constants/tips';
 import { colors, radius, shadow, spacing } from '@/theme';
-import { createTip, getTips } from '@/lib/tipsStorage';
+import { getPendingTipDraft, savePendingTipDraft } from '@/lib/pendingTipDraft';
+import { getTips } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
 
 const CONTENT_TYPES = ['X', 'YouTube', 'note', 'Web記事', 'AI回答'];
@@ -83,6 +84,12 @@ export default function AddScreen() {
     }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    getPendingTipDraft().then((draft) => {
+      if (draft) return;
+      resetForm();
+    });
+  }, []));
 
   const usedCategories = useMemo(
     () =>
@@ -121,7 +128,7 @@ export default function AddScreen() {
     setContentType('');
   };
 
-  const saveTip = async () => {
+  const proceedToConfirm = async () => {
     if (saving) return;
     if (!imageUri && !title.trim() && !memo.trim() && !content.trim() && !sourceUrl.trim()) {
       Alert.alert('保存する内容を追加してください', 'スクリーンショット、タイトル、メモのいずれかを追加すると保存できます。');
@@ -129,7 +136,7 @@ export default function AddScreen() {
     }
     setSaving(true);
     try {
-      const tip = await createTip({
+      await savePendingTipDraft({
         title: title.trim() || undefined,
         memo: memo.trim() || undefined,
         content: content.trim() || undefined,
@@ -140,11 +147,9 @@ export default function AddScreen() {
         priority,
         afterMemo: '',
       });
-      resetForm();
-      await load();
-      router.push(`/tips/${tip.id}`);
+      router.push('/tips/confirm');
     } catch (error) {
-      Alert.alert('保存できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+      Alert.alert('確認画面を開けませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
     } finally {
       setSaving(false);
     }
@@ -434,14 +439,14 @@ export default function AddScreen() {
       {/* ── 保存ボタン ── */}
       <View style={styles.saveArea}>
         <TouchableOpacity
-          onPress={saveTip}
+          onPress={proceedToConfirm}
           disabled={saving}
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           activeOpacity={0.82}
         >
-          <Text style={styles.saveBtnText}>{saving ? '保存中...' : '保存する'}</Text>
+          <Text style={styles.saveBtnText}>{saving ? '準備中...' : '確認画面へ進む'}</Text>
         </TouchableOpacity>
-        <Text style={styles.saveNote}>あとで使うために保存</Text>
+        <Text style={styles.saveNote}>内容を確認してから保存できます</Text>
       </View>
 
       {/* ── ヒントカード ── */}

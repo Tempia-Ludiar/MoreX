@@ -27,6 +27,12 @@
 4. `tip-images` が表示されることを確認します。
 5. `tip-images` に `Public` と表示されていないことを確認します。
 
+### すでに初期設定済みの場合
+
+以前に `20260601_cloud_tips.sql` を実行済みの場合は、追加で
+`supabase/migrations/20260602_sample_tips_flag.sql` の内容をSQL Editorへ貼り付け、
+一度だけ実行してください。LibraryからサンプルTipsだけを削除できるようになります。
+
 ## 3. アプリで確認する
 
 1. MoreXへログインします。

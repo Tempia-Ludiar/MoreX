@@ -15,6 +15,7 @@ create table if not exists public.tips (
   priority integer not null default 50 check (priority between 1 and 100),
   after_memo text,
   is_in_my_tips boolean not null default false,
+  is_sample boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
