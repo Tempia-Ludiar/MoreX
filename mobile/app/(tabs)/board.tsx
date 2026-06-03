@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -85,9 +86,17 @@ function HeroCard({ tip }: { tip: Tip }) {
 }
 
 // ── Todo Card ────────────────────────────────────────────────
-type CardAction = 'done' | 'todo' | 'trash' | 'mytips';
+type CardAction = 'done' | 'todo' | 'trash' | 'mytips' | 'removeMyTips' | 'candidate';
 
-function TodoCard({ tip, onAction }: { tip: Tip; onAction: (action: CardAction) => void }) {
+function TodoCard({
+  tip,
+  onAction,
+  isCandidate = false,
+}: {
+  tip: Tip;
+  onAction: (action: CardAction) => void;
+  isCandidate?: boolean;
+}) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const srcKey = getSourceKey(tip.category);
   const sm = STATUS_DISPLAY[tip.status] ?? STATUS_DISPLAY.todo;
@@ -103,10 +112,17 @@ function TodoCard({ tip, onAction }: { tip: Tip; onAction: (action: CardAction) 
     onAction(isDone ? 'todo' : 'done');
   };
 
-  const borderColor = isDone ? colors.green : tip.priority >= 75 ? colors.orange : '#3a84d0';
+  // 紫 = MyTips保存済み / 緑 = 実行済み / 優先度色 = 未実行
+  const borderColor = tip.isInMyTips
+    ? '#7c3aed'
+    : isDone
+    ? colors.green
+    : tip.priority >= 75
+    ? colors.orange
+    : '#3a84d0';
 
   return (
-    <View style={[styles.tc, { borderLeftColor: borderColor }, isDone && styles.tcDoneCard]}>
+    <View style={[styles.tc, { borderLeftColor: borderColor }, isDone && !tip.isInMyTips && styles.tcDoneCard]}>
       <TouchableOpacity
         activeOpacity={0.86}
         style={styles.tcTop}
@@ -121,14 +137,19 @@ function TodoCard({ tip, onAction }: { tip: Tip; onAction: (action: CardAction) 
               <View style={[styles.statusChip, { backgroundColor: sm.bg }]}>
                 <Text style={[styles.statusChipText, { color: sm.text }]}>{sm.label}</Text>
               </View>
+              {tip.isInMyTips ? (
+                <View style={styles.myTipsBadge}>
+                  <Text style={styles.myTipsBadgeText}>★ MyTips</Text>
+                </View>
+              ) : null}
             </View>
             {dateHint ? <Text style={styles.dateHint}>{dateHint}</Text> : null}
           </View>
-          <Text style={[styles.tcTitle, isDone && styles.tcTitleDone]} numberOfLines={2}>
+          <Text style={[styles.tcTitle, isDone && !tip.isInMyTips && styles.tcTitleDone]} numberOfLines={2}>
             {tip.title || '無題のTips'}
           </Text>
           {(tip.memo || tip.content) ? (
-            <Text style={[styles.tcMemo, isDone && styles.tcMemoDone]} numberOfLines={2}>
+            <Text style={[styles.tcMemo, isDone && !tip.isInMyTips && styles.tcMemoDone]} numberOfLines={2}>
               {tip.memo || tip.content}
             </Text>
           ) : null}
@@ -148,20 +169,38 @@ function TodoCard({ tip, onAction }: { tip: Tip; onAction: (action: CardAction) 
         </TouchableOpacity>
       </TouchableOpacity>
 
-      {!isDone && (
-        <View style={styles.tcActs}>
-          <TouchableOpacity style={[styles.act, styles.actDone]} onPress={() => onAction('done')} activeOpacity={0.8}>
-            <Text style={styles.actDoneText}>✓ 完了</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.act, styles.actDel]} onPress={() => onAction('trash')} activeOpacity={0.8}>
-            <Text style={styles.actDelText}>✕ 削除</Text>
-          </TouchableOpacity>
-          <View style={{ flex: 1 }} />
-          <TouchableOpacity style={[styles.act, styles.actMytips]} onPress={() => onAction('mytips')} activeOpacity={0.8}>
-            <Text style={styles.actMytipsText}>★ MyTips</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <View style={styles.tcActs}>
+        {isDone ? (
+          tip.isInMyTips ? (
+            <>
+              <View style={[styles.act, styles.actSaved]}>
+                <Text style={styles.actSavedText}>★ MyTips保存済み</Text>
+              </View>
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity style={[styles.act, styles.actRemove]} onPress={() => onAction('removeMyTips')} activeOpacity={0.8}>
+                <Text style={styles.actRemoveText}>外す</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={[styles.act, styles.actMytips]} onPress={() => onAction('mytips')} activeOpacity={0.8}>
+              <Text style={styles.actMytipsText}>★ MyTipsに残す</Text>
+            </TouchableOpacity>
+          )
+        ) : (
+          <>
+            <TouchableOpacity style={[styles.act, styles.actDone]} onPress={() => onAction('done')} activeOpacity={0.8}>
+              <Text style={styles.actDoneText}>✓ 完了</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.act, styles.actDel]} onPress={() => onAction('trash')} activeOpacity={0.8}>
+              <Text style={styles.actDelText}>✕ 不要</Text>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }} />
+            <TouchableOpacity style={[styles.act, styles.actCandidate]} onPress={() => onAction('candidate')} activeOpacity={0.8}>
+              <Text style={styles.actCandidateText}>{isCandidate ? '★ 候補' : '☆ 候補'}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -172,6 +211,8 @@ export default function TodoScreen() {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(all);
   const [sourceFilter, setSourceFilter] = useState<string>(all);
+  const [completionTip, setCompletionTip] = useState<Tip | null>(null);
+  const [candidateIds, setCandidateIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -183,15 +224,32 @@ export default function TodoScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const handleAction = useCallback(async (action: CardAction, tip: Tip) => {
-    if (action === 'mytips') {
+    if (action === 'candidate') {
+      setCandidateIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(tip.id)) next.delete(tip.id); else next.add(tip.id);
+        return next;
+      });
+      return;
+    }
+    if (action === 'done') {
+      await updateTip(tip.id, { status: 'done' });
+      await load();
+      setCompletionTip(tip);
+    } else if (action === 'todo') {
+      await updateTip(tip.id, { status: 'todo' });
+      await load();
+    } else if (action === 'mytips') {
       await updateTip(tip.id, { isInMyTips: true });
-      Alert.alert('MyTipsに追加', `「${tip.title || '無題'}」をMyTips候補に追加しました。`);
+      await load();
+    } else if (action === 'removeMyTips') {
+      await updateTip(tip.id, { isInMyTips: false });
       await load();
     } else if (action === 'trash') {
-      Alert.alert('削除しますか?', 'このTipsを一覧から削除します。', [
+      Alert.alert('非表示にしますか?', 'このTipsを一覧から非表示にします。', [
         { text: 'キャンセル', style: 'cancel' },
         {
-          text: '削除',
+          text: '非表示にする',
           style: 'destructive',
           onPress: async () => {
             await updateTip(tip.id, { status: 'trash' });
@@ -199,11 +257,19 @@ export default function TodoScreen() {
           },
         },
       ]);
-    } else {
-      await updateTip(tip.id, { status: action });
-      await load();
     }
   }, [load]);
+
+  const handleCompletionMyTips = useCallback(async () => {
+    if (!completionTip) return;
+    await updateTip(completionTip.id, { isInMyTips: true });
+    setCompletionTip(null);
+    await load();
+  }, [completionTip, load]);
+
+  const handleCompletionDismiss = useCallback(() => {
+    setCompletionTip(null);
+  }, []);
 
   const visibleTips = useMemo(() => tips.filter((t) => t.status !== 'trash'), [tips]);
   const sampleTipCount = useMemo(() => tips.filter((t) => t.isSample).length, [tips]);
@@ -270,6 +336,7 @@ export default function TodoScreen() {
   const sourceOptions: string[] = [all, ...KNOWN_SOURCES, 'Other'];
 
   return (
+    <>
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
@@ -280,6 +347,9 @@ export default function TodoScreen() {
         <Text style={styles.headerTitle}>Todo</Text>
         <Text style={styles.headerSub}>
           保存中 {visibleTips.length}件・未実行 {statusCounts.todo}件
+        </Text>
+        <Text style={styles.headerHint}>
+          実行したTipsはDoneに移動します。特に役立ったものだけMyTipsに残せます。
         </Text>
       </View>
 
@@ -374,7 +444,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{highTips.length}件</Text>
               </View>
               {highTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={candidateIds.has(tip.id)} />
               ))}
             </View>
           )}
@@ -387,7 +457,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{mediumTips.length}件</Text>
               </View>
               {mediumTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={candidateIds.has(tip.id)} />
               ))}
             </View>
           )}
@@ -400,7 +470,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{lowTips.length}件</Text>
               </View>
               {lowTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={candidateIds.has(tip.id)} />
               ))}
             </View>
           )}
@@ -413,13 +483,48 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{doneTips.length}件</Text>
               </View>
               {doneTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={false} />
               ))}
             </View>
           )}
         </>
       )}
     </ScrollView>
+
+    {/* 完了後ボトムシート */}
+    {completionTip ? (
+      <Modal
+        transparent
+        animationType="fade"
+        visible
+        onRequestClose={handleCompletionDismiss}
+      >
+        <TouchableOpacity
+          style={styles.modalBg}
+          activeOpacity={1}
+          onPress={handleCompletionDismiss}
+        >
+          <View style={styles.bsSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.bsHandle} />
+            <Text style={styles.bsTitle}>実行完了！</Text>
+            <Text style={styles.bsTipTitle} numberOfLines={1}>
+              {completionTip.title || '無題のTips'}
+            </Text>
+            <Text style={styles.bsBody}>
+              このTipsをMyTipsに残しますか？{'\n'}
+              本当に役立ったTipsだけをMyTipsに残すと、あとで再利用しやすくなります。
+            </Text>
+            <TouchableOpacity style={styles.bsPrimary} onPress={handleCompletionMyTips} activeOpacity={0.85}>
+              <Text style={styles.bsPrimaryText}>★ MyTipsに残す</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bsSecondary} onPress={handleCompletionDismiss} activeOpacity={0.75}>
+              <Text style={styles.bsSecondaryText}>完了だけにする</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    ) : null}
+    </>
   );
 }
 
@@ -611,4 +716,59 @@ const styles = StyleSheet.create({
   actDelText: { color: colors.danger, fontSize: 11, fontWeight: '600' },
   actMytips: { backgroundColor: colors.accentSoft },
   actMytipsText: { color: colors.accentDeep, fontSize: 11, fontWeight: '600' },
+
+  // Done card actions
+  actSaved: { backgroundColor: '#f3e8ff' },
+  actSavedText: { color: '#7c3aed', fontSize: 11, fontWeight: '700' },
+  actRemove: { backgroundColor: '#f5f5f7' },
+  actRemoveText: { color: colors.inkMuted, fontSize: 11, fontWeight: '600' },
+
+  // Unexecuted candidate star
+  actCandidate: { backgroundColor: '#f5f0ff' },
+  actCandidateText: { color: '#7c3aed', fontSize: 11, fontWeight: '600' },
+
+  // MyTips inline badge on card
+  myTipsBadge: { backgroundColor: '#f3e8ff', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2.5 },
+  myTipsBadgeText: { color: '#7c3aed', fontSize: 10, fontWeight: '700' },
+
+  // Header hint
+  headerHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 17, marginTop: 4 },
+
+  // Completion bottom sheet
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  bsSheet: {
+    backgroundColor: colors.bgElevated,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    gap: spacing.md,
+    padding: spacing.xl,
+    paddingBottom: 44,
+  },
+  bsHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    height: 4,
+    marginBottom: spacing.xs,
+    width: 40,
+  },
+  bsTitle: { color: colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  bsTipTitle: { color: colors.inkSub, fontSize: 13, marginTop: -spacing.xs },
+  bsBody: { color: colors.inkSub, fontSize: 13, lineHeight: 20 },
+  bsPrimary: {
+    alignItems: 'center',
+    backgroundColor: '#3a1a6e',
+    borderRadius: radius.md,
+    paddingVertical: 14,
+  },
+  bsPrimaryText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  bsSecondary: {
+    alignItems: 'center',
+    backgroundColor: colors.bgElevated,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
+  bsSecondaryText: { color: colors.inkSub, fontSize: 14, fontWeight: '600' },
 });

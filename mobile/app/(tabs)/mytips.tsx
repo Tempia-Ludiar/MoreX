@@ -188,7 +188,7 @@ export default function MyTipsScreen() {
 
   const myTips = useMemo(
     () => tips
-      .filter((t) => t.isInMyTips === true || t.status === 'done')
+      .filter((t) => t.isInMyTips === true)
       .sort((a, b) => b.priority - a.priority || b.updatedAt.localeCompare(a.updatedAt)),
     [tips],
   );
@@ -268,6 +268,7 @@ export default function MyTipsScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>MyTips</Text>
           <Text style={styles.headerSub}>あなたの型 — 0件蓄積</Text>
+          <Text style={styles.headerHint}>実行してよかったTipsだけを残す知識資産です。</Text>
         </View>
         <View style={styles.emptyCard}>
           <Text style={styles.emptyIcon}>🌱</Text>
@@ -298,6 +299,7 @@ export default function MyTipsScreen() {
           <View>
             <Text style={styles.headerTitle}>MyTips</Text>
             <Text style={styles.headerSub}>あなたの型 — {myTips.length}件蓄積</Text>
+            <Text style={styles.headerHint}>実行してよかったTipsだけを残す知識資産です。</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -450,6 +452,7 @@ const styles = StyleSheet.create({
   headerRow: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
   headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
   headerSub: { color: colors.inkMuted, fontSize: 12 },
+  headerHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16, marginTop: 5 },
   headerActions: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, paddingTop: 4 },
   iconBtn: {
     alignItems: 'center',
