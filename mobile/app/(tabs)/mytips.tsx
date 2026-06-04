@@ -117,22 +117,7 @@ function MyTipsCard({ tip }: { tip: Tip }) {
         <Text style={styles.tipDate}>{formatSavedDate(tip.updatedAt)}</Text>
 
         <View style={styles.tipFoot}>
-          <TouchableOpacity
-            style={styles.reuseBtn}
-            onPress={() => router.push(`/tips/${tip.id}`)}
-            activeOpacity={0.8}
-          >
-            <Svg width={13} height={13} viewBox="0 0 13 13" fill="none">
-              <Path
-                d="M2.5 7A4.5 4.5 0 0 1 11 4M11 4V6.5M11 4H8.5"
-                stroke={colors.accent}
-                strokeWidth={1.6}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-            <Text style={styles.reuseBtnText}>再利用する</Text>
-          </TouchableOpacity>
+          <View />
           <TouchableOpacity onPress={() => router.push(`/tips/${tip.id}`)} activeOpacity={0.7}>
             <Text style={styles.detailBtn}>詳細 ›</Text>
           </TouchableOpacity>
@@ -573,16 +558,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: spacing.sm,
   },
-  reuseBtn: {
-    alignItems: 'center',
-    backgroundColor: colors.accentSoft,
-    borderRadius: 10,
-    flexDirection: 'row',
-    gap: 5,
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-  },
-  reuseBtnText: { color: colors.accent, fontSize: 12.5, fontWeight: '700' },
   detailBtn: { color: colors.inkMuted, fontSize: 11 },
 
   // Plus Banner

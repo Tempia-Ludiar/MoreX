@@ -16,7 +16,7 @@ import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { EmptyState } from '@/components/EmptyState';
 import { colors, radius, shadow, spacing } from '@/theme';
-import { deleteSampleTips, getTips, updateTip } from '@/lib/tipsStorage';
+import { deleteTip, getTips, updateTip } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
 
 const all = 'all' as const;
@@ -86,16 +86,14 @@ function HeroCard({ tip }: { tip: Tip }) {
 }
 
 // ── Todo Card ────────────────────────────────────────────────
-type CardAction = 'done' | 'todo' | 'trash' | 'mytips' | 'removeMyTips' | 'candidate';
+type CardAction = 'done' | 'todo' | 'trash' | 'mytips' | 'removeMyTips';
 
 function TodoCard({
   tip,
   onAction,
-  isCandidate = false,
 }: {
   tip: Tip;
   onAction: (action: CardAction) => void;
-  isCandidate?: boolean;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const srcKey = getSourceKey(tip.category);
@@ -155,23 +153,40 @@ function TodoCard({
           ) : null}
         </View>
 
-        <TouchableOpacity
-          onPress={handleCheck}
-          activeOpacity={0.7}
-          style={styles.cbTouch}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Animated.View
-            style={[styles.cbCircle, isDone && styles.cbDone, { transform: [{ scale: scaleAnim }] }]}
+        <View style={styles.actionRail}>
+          <TouchableOpacity
+            onPress={handleCheck}
+            activeOpacity={0.7}
+            style={styles.completeButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            {isDone && <Text style={styles.cbCheck}>✓</Text>}
-          </Animated.View>
-        </TouchableOpacity>
+            <Animated.View
+              style={[styles.cbCircle, isDone && styles.cbDone, { transform: [{ scale: scaleAnim }] }]}
+            >
+              {isDone && <Text style={styles.cbCheck}>✓</Text>}
+            </Animated.View>
+            <Text style={[styles.completeLabel, isDone && styles.completeLabelDone]}>
+              {isDone ? '完了' : '完了にする'}
+            </Text>
+          </TouchableOpacity>
+
+          {!isDone ? (
+            <TouchableOpacity
+              style={styles.trashMiniButton}
+              onPress={() => onAction('trash')}
+              activeOpacity={0.78}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Text style={styles.trashMiniIcon}>×</Text>
+              <Text style={styles.trashMiniLabel}>不要</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </TouchableOpacity>
 
-      <View style={styles.tcActs}>
-        {isDone ? (
-          tip.isInMyTips ? (
+      {isDone ? (
+        <View style={styles.tcActs}>
+          {tip.isInMyTips ? (
             <>
               <View style={[styles.act, styles.actSaved]}>
                 <Text style={styles.actSavedText}>★ MyTips保存済み</Text>
@@ -185,22 +200,9 @@ function TodoCard({
             <TouchableOpacity style={[styles.act, styles.actMytips]} onPress={() => onAction('mytips')} activeOpacity={0.8}>
               <Text style={styles.actMytipsText}>★ MyTipsに残す</Text>
             </TouchableOpacity>
-          )
-        ) : (
-          <>
-            <TouchableOpacity style={[styles.act, styles.actDone]} onPress={() => onAction('done')} activeOpacity={0.8}>
-              <Text style={styles.actDoneText}>✓ 完了</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.act, styles.actDel]} onPress={() => onAction('trash')} activeOpacity={0.8}>
-              <Text style={styles.actDelText}>✕ 不要</Text>
-            </TouchableOpacity>
-            <View style={{ flex: 1 }} />
-            <TouchableOpacity style={[styles.act, styles.actCandidate]} onPress={() => onAction('candidate')} activeOpacity={0.8}>
-              <Text style={styles.actCandidateText}>{isCandidate ? '★ 候補' : '☆ 候補'}</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+          )}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -212,7 +214,6 @@ export default function TodoScreen() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(all);
   const [sourceFilter, setSourceFilter] = useState<string>(all);
   const [completionTip, setCompletionTip] = useState<Tip | null>(null);
-  const [candidateIds, setCandidateIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     try {
@@ -224,14 +225,6 @@ export default function TodoScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const handleAction = useCallback(async (action: CardAction, tip: Tip) => {
-    if (action === 'candidate') {
-      setCandidateIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(tip.id)) next.delete(tip.id); else next.add(tip.id);
-        return next;
-      });
-      return;
-    }
     if (action === 'done') {
       await updateTip(tip.id, { status: 'done' });
       await load();
@@ -246,13 +239,13 @@ export default function TodoScreen() {
       await updateTip(tip.id, { isInMyTips: false });
       await load();
     } else if (action === 'trash') {
-      Alert.alert('非表示にしますか?', 'このTipsを一覧から非表示にします。', [
+      Alert.alert('このTipsを削除しますか?', '削除したTipsは復元できません。', [
         { text: 'キャンセル', style: 'cancel' },
         {
-          text: '非表示にする',
+          text: '削除する',
           style: 'destructive',
           onPress: async () => {
-            await updateTip(tip.id, { status: 'trash' });
+            await deleteTip(tip.id);
             await load();
           },
         },
@@ -272,29 +265,6 @@ export default function TodoScreen() {
   }, []);
 
   const visibleTips = useMemo(() => tips.filter((t) => t.status !== 'trash'), [tips]);
-  const sampleTipCount = useMemo(() => tips.filter((t) => t.isSample).length, [tips]);
-
-  const confirmDeleteSamples = useCallback(() => {
-    Alert.alert(
-      'サンプルTipsを削除しますか?',
-      '最初から入っているサンプルTipsだけを削除します。あなたが追加したTipsは残ります。',
-      [
-        { text: 'キャンセル', style: 'cancel' },
-        {
-          text: '削除する',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteSampleTips();
-              await load();
-            } catch (error) {
-              Alert.alert('削除できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
-            }
-          },
-        },
-      ],
-    );
-  }, [load]);
 
   const statusCounts = useMemo(() => ({
     all:   visibleTips.length,
@@ -352,18 +322,6 @@ export default function TodoScreen() {
           実行したTipsはDoneに移動します。特に役立ったものだけMyTipsに残せます。
         </Text>
       </View>
-
-      {sampleTipCount > 0 ? (
-        <View style={styles.sampleCard}>
-          <View style={styles.sampleCopy}>
-            <Text style={styles.sampleTitle}>サンプルTipsが{sampleTipCount}件あります</Text>
-            <Text style={styles.sampleBody}>使い方を確認したら、まとめて削除できます。</Text>
-          </View>
-          <TouchableOpacity style={styles.sampleDeleteButton} onPress={confirmDeleteSamples} activeOpacity={0.78}>
-            <Text style={styles.sampleDeleteText}>サンプルTipsを削除</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
 
       {/* Hero */}
       {heroTip ? (
@@ -444,7 +402,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{highTips.length}件</Text>
               </View>
               {highTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={candidateIds.has(tip.id)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
               ))}
             </View>
           )}
@@ -457,7 +415,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{mediumTips.length}件</Text>
               </View>
               {mediumTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={candidateIds.has(tip.id)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
               ))}
             </View>
           )}
@@ -470,7 +428,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{lowTips.length}件</Text>
               </View>
               {lowTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={candidateIds.has(tip.id)} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
               ))}
             </View>
           )}
@@ -483,7 +441,7 @@ export default function TodoScreen() {
                 <Text style={styles.bucketCount}>{doneTips.length}件</Text>
               </View>
               {doneTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} isCandidate={false} />
+                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
               ))}
             </View>
           )}
@@ -536,30 +494,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.xs },
   headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
   headerSub: { color: colors.inkMuted, fontSize: 12 },
-
-  // Sample tips
-  sampleCard: {
-    alignItems: 'center',
-    backgroundColor: colors.bgElevated,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginHorizontal: spacing.md,
-    padding: spacing.md,
-    ...shadow.cardSoft,
-  },
-  sampleCopy: { flex: 1, gap: 3 },
-  sampleTitle: { color: colors.ink, fontSize: 12.5, fontWeight: '700' },
-  sampleBody: { color: colors.inkMuted, fontSize: 10.5, lineHeight: 15 },
-  sampleDeleteButton: {
-    backgroundColor: colors.dangerSoft,
-    borderRadius: radius.md,
-    paddingHorizontal: 11,
-    paddingVertical: 8,
-  },
-  sampleDeleteText: { color: colors.danger, fontSize: 11, fontWeight: '700' },
 
   // Hero
   heroWrap: { marginHorizontal: spacing.md },
@@ -663,7 +597,7 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   tcDoneCard: { opacity: 0.68 },
-  tcTop: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, padding: 12 },
+  tcTop: { alignItems: 'flex-start', flexDirection: 'row', gap: 10, padding: 12 },
   tcMain: { flex: 1, minWidth: 0 },
   tcChipRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   tcChipLeft: { alignItems: 'center', flexDirection: 'row', gap: 6 },
@@ -677,7 +611,15 @@ const styles = StyleSheet.create({
   tcMemo: { color: colors.inkSub, fontSize: 11, lineHeight: 17 },
   tcMemoDone: { color: colors.inkMuted },
 
-  cbTouch: { marginTop: 2, padding: 4 },
+  actionRail: {
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 54,
+  },
+  completeButton: {
+    alignItems: 'center',
+    gap: 4,
+  },
   cbCircle: {
     alignItems: 'center',
     backgroundColor: '#ffffff',
@@ -698,6 +640,24 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   cbCheck: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
+  completeLabel: {
+    color: colors.inkMuted,
+    fontSize: 9.5,
+    fontWeight: '700',
+    lineHeight: 12,
+    textAlign: 'center',
+  },
+  completeLabelDone: { color: colors.green },
+  trashMiniButton: {
+    alignItems: 'center',
+    backgroundColor: '#fff1f0',
+    borderRadius: 11,
+    gap: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  trashMiniIcon: { color: colors.danger, fontSize: 12, fontWeight: '800', lineHeight: 13 },
+  trashMiniLabel: { color: colors.danger, fontSize: 9.5, fontWeight: '700', lineHeight: 12 },
 
   tcActs: {
     alignItems: 'center',
@@ -710,10 +670,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   act: { alignItems: 'center', borderRadius: radius.sm, flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 5 },
-  actDone: { backgroundColor: colors.greenSoft },
-  actDoneText: { color: '#1a8a3c', fontSize: 11, fontWeight: '600' },
-  actDel: { backgroundColor: '#fff1f0' },
-  actDelText: { color: colors.danger, fontSize: 11, fontWeight: '600' },
   actMytips: { backgroundColor: colors.accentSoft },
   actMytipsText: { color: colors.accentDeep, fontSize: 11, fontWeight: '600' },
 
@@ -722,10 +678,6 @@ const styles = StyleSheet.create({
   actSavedText: { color: '#7c3aed', fontSize: 11, fontWeight: '700' },
   actRemove: { backgroundColor: '#f5f5f7' },
   actRemoveText: { color: colors.inkMuted, fontSize: 11, fontWeight: '600' },
-
-  // Unexecuted candidate star
-  actCandidate: { backgroundColor: '#f5f0ff' },
-  actCandidateText: { color: '#7c3aed', fontSize: 11, fontWeight: '600' },
 
   // MyTips inline badge on card
   myTipsBadge: { backgroundColor: '#f3e8ff', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2.5 },
