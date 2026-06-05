@@ -16,7 +16,6 @@ import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
-import { categories } from '@/constants/tips';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { getPendingTipDraft, savePendingTipDraft } from '@/lib/pendingTipDraft';
 import {
@@ -27,8 +26,7 @@ import {
   type LinkPreview,
   type LinkPreviewType,
 } from '@/lib/linkPreview';
-import { getTips } from '@/lib/tipsStorage';
-import { Tip } from '@/types/tip';
+import { getUserCategories } from '@/lib/userCategories';
 
 const CONTENT_TYPES = LINK_PREVIEW_TYPES;
 type ContentType = LinkPreviewType;
@@ -51,7 +49,6 @@ const USE_CHIPS: { label: string; full: string }[] = [
 ];
 
 export default function AddScreen() {
-  const [tips, setTips] = useState<Tip[]>([]);
   const [title, setTitle] = useState('');
   const [memo, setMemo] = useState('');
   const [content, setContent] = useState('');
@@ -66,12 +63,13 @@ export default function AddScreen() {
   const [contentType, setContentType] = useState<ContentType | ''>('');
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
+  const [managedCategories, setManagedCategories] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
-      setTips(await getTips());
+      setManagedCategories(await getUserCategories());
     } catch (error) {
-      Alert.alert('クラウド保存を確認してください', error instanceof Error ? error.message : 'Tipsを読み込めませんでした。');
+      Alert.alert('カテゴリを読み込めませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
     }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -83,14 +81,8 @@ export default function AddScreen() {
   }, []));
 
   const usedCategories = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...tips.map((t) => t.category).filter(Boolean),
-          ...categories.filter((c) => c !== 'その他'),
-        ]),
-      ).slice(0, 18) as string[],
-    [tips],
+    () => managedCategories.slice(0, 18),
+    [managedCategories],
   );
   useEffect(() => {
     const url = sourceUrl.trim();
@@ -379,7 +371,15 @@ export default function AddScreen() {
           </View>
           </View>
           <View style={[styles.importantField, styles.importantFieldLast]}>
-            <Text style={styles.importantLabel}>カテゴリ</Text>
+            <View style={styles.importantLabelRow}>
+              <Text style={styles.importantLabel}>カテゴリ</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/settings/categories')}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.manageCategoryLink}>設定で管理</Text>
+              </TouchableOpacity>
+            </View>
             <TextInput
               value={category}
               onChangeText={setCategory}
@@ -646,7 +646,13 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   importantFieldLast: { borderBottomWidth: 0 },
+  importantLabelRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   importantLabel: { color: colors.ink, fontSize: 12, fontWeight: '700' },
+  manageCategoryLink: { color: colors.accentDeep, fontSize: 11, fontWeight: '800' },
   importantInput: {
     backgroundColor: '#f2f2f7',
     borderRadius: 10,

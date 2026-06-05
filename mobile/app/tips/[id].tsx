@@ -17,9 +17,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
 import { clampPriority } from '@/constants/priority';
-import { categories } from '@/constants/tips';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { deleteTip, getTipById, getTips, updateTip } from '@/lib/tipsStorage';
+import { getUserCategories } from '@/lib/userCategories';
 import { Tip } from '@/types/tip';
 
 // ─── Source / hero config ────────────────────────────────────────────────────
@@ -297,16 +297,21 @@ function EditMode({ tip, allTips, onSave, onCancel }: {
   const [imageUri, setImageUri] = useState<string | undefined>(tip.imageUri);
   const [status, setStatus] = useState(tip.status);
   const [saving, setSaving] = useState(false);
+  const [managedCategories, setManagedCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    getUserCategories().then(setManagedCategories);
+  }, []);
 
   const usedCategories = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...allTips.map((t) => t.category).filter(Boolean),
-          ...categories.filter((c) => c !== 'その他'),
-        ]),
-      ).slice(0, 18) as string[],
-    [allTips],
+    () => {
+      const currentCategory = tip.category?.trim();
+      const next = currentCategory && !managedCategories.includes(currentCategory)
+        ? [currentCategory, ...managedCategories]
+        : managedCategories;
+      return next.slice(0, 18);
+    },
+    [managedCategories, tip.category],
   );
 
   const pickImage = async () => {
@@ -433,7 +438,15 @@ function EditMode({ tip, allTips, onSave, onCancel }: {
 
       {/* Category */}
       <View style={styles.fieldCard}>
-        <Text style={styles.fieldLabel}>カテゴリ</Text>
+        <View style={styles.fieldLabelRow}>
+          <Text style={[styles.fieldLabel, styles.fieldLabelInRow]}>カテゴリ</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/settings/categories')}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.manageCategoryLink}>設定で管理</Text>
+          </TouchableOpacity>
+        </View>
         <TextInput
           value={category}
           onChangeText={setCategory}
@@ -884,6 +897,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     textTransform: 'uppercase',
   },
+  fieldLabelRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  fieldLabelInRow: { marginBottom: 0 },
+  manageCategoryLink: { color: colors.accentDeep, fontSize: 11, fontWeight: '800' },
   input: { color: colors.ink, fontSize: 14, paddingVertical: 6 },
   multiline: { minHeight: 60, textAlignVertical: 'top' },
 

@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router, useFocusEffect } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { SupabaseAuthCard } from '@/components/SupabaseAuthCard';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { clearTips } from '@/lib/tipsStorage';
+import { getUserCategories } from '@/lib/userCategories';
 
 const WAITLIST_KEY = 'morex.waitlist.email.v0';
 
@@ -12,7 +14,7 @@ const plusFeatures = [
   { icon: '⚡', label: 'MyTips無制限', desc: '実行済みTipsをすべて蓄積' },
   { icon: '🔍', label: 'OCR検索', desc: 'スクショ内テキストを全文検索' },
   { icon: '📤', label: 'Markdownエクスポート', desc: 'TipsをMDファイルで書き出し' },
-  { icon: '🏷', label: 'カスタムカテゴリ', desc: '自分だけのカテゴリ管理' },
+  { icon: '🧭', label: 'AI自動タグ付け', desc: '保存時にタグを自動提案' },
 ];
 
 export default function SettingsScreen() {
@@ -20,6 +22,7 @@ export default function SettingsScreen() {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [email, setEmail] = useState('');
   const [registered, setRegistered] = useState(false);
+  const [categoryCount, setCategoryCount] = useState(0);
 
   useEffect(() => {
     AsyncStorage.getItem(WAITLIST_KEY).then((saved) => {
@@ -28,6 +31,10 @@ export default function SettingsScreen() {
       setRegistered(true);
     });
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    getUserCategories().then((items) => setCategoryCount(items.length));
+  }, []));
 
   const registerWaitlist = async () => {
     if (!email.trim()) return;
@@ -54,6 +61,27 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>アカウント</Text>
       </View>
       <SupabaseAuthCard />
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>アプリ設定</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.settingCard}
+        onPress={() => router.push('/settings/categories')}
+        activeOpacity={0.82}
+      >
+        <View style={styles.settingIcon}>
+          <Text style={styles.settingIconText}>🏷</Text>
+        </View>
+        <View style={styles.settingBody}>
+          <Text style={styles.settingTitle}>カテゴリ管理</Text>
+          <Text style={styles.settingDesc}>Add画面に表示するカテゴリ候補を整理</Text>
+        </View>
+        <View style={styles.settingMeta}>
+          <Text style={styles.settingCount}>{categoryCount}件</Text>
+          <Text style={styles.settingArrow}>›</Text>
+        </View>
+      </TouchableOpacity>
 
       {/* Plus features — compact 2×2 grid */}
       <View style={styles.sectionHeader}>
@@ -240,6 +268,31 @@ const styles = StyleSheet.create({
   registeredRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   registeredCheck: { color: colors.accentDeep, fontSize: 16, fontWeight: '700' },
   registeredText: { color: colors.accentDeep, fontSize: 13 },
+
+  settingCard: {
+    alignItems: 'center',
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.lg,
+    ...shadow.cardSoft,
+  },
+  settingIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.md,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  settingIconText: { fontSize: 20 },
+  settingBody: { flex: 1, gap: 3 },
+  settingTitle: { color: colors.ink, fontSize: 15, fontWeight: '800' },
+  settingDesc: { color: colors.inkSub, fontSize: 12, lineHeight: 17 },
+  settingMeta: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs },
+  settingCount: { color: colors.inkMuted, fontSize: 12, fontWeight: '700' },
+  settingArrow: { color: colors.inkMuted, fontSize: 22, lineHeight: 24 },
 
   accordionRow: {
     alignItems: 'center',
