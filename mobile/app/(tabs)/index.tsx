@@ -26,7 +26,7 @@ import {
   type LinkPreview,
   type LinkPreviewType,
 } from '@/lib/linkPreview';
-import { getUserCategories } from '@/lib/userCategories';
+import { addUserCategory, getUserCategories } from '@/lib/userCategories';
 
 const CONTENT_TYPES = LINK_PREVIEW_TYPES;
 type ContentType = LinkPreviewType;
@@ -117,6 +117,11 @@ export default function AddScreen() {
   const previewTitle = linkPreview?.title || linkPreview?.siteName || previewMeta.label;
   const previewDescription = linkPreview?.description;
   const previewUrl = linkPreview?.url || normalizeUrl(sourceUrl) || sourceUrl;
+  const trimmedCategory = category.trim();
+  const categoryAlreadyManaged = managedCategories.some(
+    (item) => item.trim().toLowerCase() === trimmedCategory.toLowerCase(),
+  );
+  const showAddCategoryCandidate = trimmedCategory.length > 0 && !categoryAlreadyManaged;
 
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -182,6 +187,15 @@ export default function AddScreen() {
     setPriorityChanged(true);
   };
 
+  const addCategoryCandidate = async () => {
+    if (!trimmedCategory) return;
+    try {
+      setManagedCategories(await addUserCategory(trimmedCategory));
+    } catch (error) {
+      Alert.alert('カテゴリを追加できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+    }
+  };
+
   return (
     <ScrollView
       style={styles.screen}
@@ -193,6 +207,21 @@ export default function AddScreen() {
         <Text style={styles.pageTitle}>Add</Text>
       </View>
       <Text style={styles.pageSub}>X・YouTube・note・記事・AI回答などをあとで使える形で保存</Text>
+      <LinearGradient
+        colors={['#1a1a3c', '#2d1660']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.quickGuide}
+      >
+        <Text style={styles.quickGuideKicker}>Quick capture</Text>
+        <Text style={styles.quickGuideTitle}>まずはURLかメモだけでOK</Text>
+        <Text style={styles.quickGuideSub}>あとからタイトル・用途・カテゴリを整えられます。</Text>
+        <View style={styles.quickGuidePills}>
+          <Text style={styles.quickGuidePill}>URL</Text>
+          <Text style={styles.quickGuidePill}>メモ</Text>
+          <Text style={styles.quickGuidePill}>あとで整理</Text>
+        </View>
+      </LinearGradient>
 
       {/* ── Section 1: 保存したいコンテンツ（必須） ── */}
       <View style={styles.sec}>
@@ -303,7 +332,7 @@ export default function AddScreen() {
               )}
               {!previewImage && !linkPreviewLoading && (
                 <Text style={styles.prevFallbackHelp}>
-                  画像が取得できない場合も、リンク種別は保存できます
+                  このリンクは画像なしでも保存できます
                 </Text>
               )}
               <View style={styles.prevFoot}>
@@ -401,6 +430,15 @@ export default function AddScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            {showAddCategoryCandidate && (
+              <TouchableOpacity
+                style={styles.addCategoryCandidate}
+                onPress={addCategoryCandidate}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.addCategoryCandidateText}>＋「{trimmedCategory}」を候補に追加</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -496,7 +534,7 @@ export default function AddScreen() {
         >
           <Text style={styles.saveBtnText}>{saving ? '準備中...' : '確認画面へ進む'}</Text>
         </TouchableOpacity>
-        <Text style={styles.saveNote}>内容を確認してから保存できます</Text>
+        <Text style={styles.saveNote}>次の画面で内容を確認してから保存します</Text>
       </View>
 
       {/* ── ヒントカード ── */}
@@ -533,6 +571,27 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   pageSub: { fontSize: 12, color: colors.inkMuted, lineHeight: 18, marginBottom: 14 },
+  quickGuide: {
+    borderRadius: 18,
+    marginBottom: 16,
+    overflow: 'hidden',
+    padding: 16,
+    ...shadow.cardSoft,
+  },
+  quickGuideKicker: { color: '#ffcf7a', fontSize: 10, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase' },
+  quickGuideTitle: { color: '#ffffff', fontSize: 17, fontWeight: '800', letterSpacing: -0.2, marginTop: 4 },
+  quickGuideSub: { color: 'rgba(255,255,255,0.72)', fontSize: 11.5, lineHeight: 17, marginTop: 4 },
+  quickGuidePills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  quickGuidePill: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: radius.pill,
+    color: '#ffffff',
+    fontSize: 10.5,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
 
   // Section wrapper
   sec: { marginBottom: 14 },
@@ -702,6 +761,15 @@ const styles = StyleSheet.create({
   catTagActive: { backgroundColor: colors.ink },
   catTagText: { color: colors.inkSub, fontSize: 11, fontWeight: '600' },
   catTagTextActive: { color: '#ffffff' },
+  addCategoryCandidate: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.greenSoft,
+    borderRadius: radius.pill,
+    marginTop: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  addCategoryCandidateText: { color: colors.green, fontSize: 11.5, fontWeight: '800' },
   sliderSep: {
     borderTopColor: colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,

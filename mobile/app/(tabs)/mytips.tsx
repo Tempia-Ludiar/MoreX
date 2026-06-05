@@ -311,6 +311,16 @@ export default function MyTipsScreen() {
         </View>
       </View>
 
+      <View style={styles.roleCard}>
+        <View style={styles.roleIcon}>
+          <Text style={styles.roleIconText}>★</Text>
+        </View>
+        <View style={styles.roleBody}>
+          <Text style={styles.roleTitle}>MyTipsは「残す価値があった学び」の棚</Text>
+          <Text style={styles.roleText}>実行済みの中から、また使いたいTipsだけを残して育てます。</Text>
+        </View>
+      </View>
+
       {/* Search */}
       {showSearch ? (
         <View style={styles.searchRow}>
@@ -438,6 +448,28 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
   headerSub: { color: colors.inkMuted, fontSize: 12 },
   headerHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16, marginTop: 5 },
+  roleCard: {
+    alignItems: 'center',
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginHorizontal: spacing.lg,
+    padding: spacing.md,
+    ...shadow.cardSoft,
+  },
+  roleIcon: {
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.md,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  roleIconText: { color: colors.accentDeep, fontSize: 16, fontWeight: '900' },
+  roleBody: { flex: 1, gap: 2 },
+  roleTitle: { color: colors.ink, fontSize: 13, fontWeight: '800' },
+  roleText: { color: colors.inkSub, fontSize: 11.5, lineHeight: 17 },
   headerActions: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm, paddingTop: 4 },
   iconBtn: {
     alignItems: 'center',

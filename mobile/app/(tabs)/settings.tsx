@@ -101,6 +101,9 @@ export default function SettingsScreen() {
         ))}
       </View>
 
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>通知</Text>
+      </View>
       {/* Release notification — highlighted CTA */}
       <View style={styles.notifyCard}>
         <Text style={styles.notifyTitle}>Plusリリース時に通知を受け取る</Text>
@@ -132,13 +135,16 @@ export default function SettingsScreen() {
         )}
       </View>
 
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>データ管理</Text>
+      </View>
       {/* Danger zone accordion */}
       <TouchableOpacity
         style={styles.accordionRow}
         onPress={() => setDangerOpen((v) => !v)}
         activeOpacity={0.75}
       >
-        <Text style={styles.accordionTitle}>詳細設定</Text>
+        <Text style={styles.accordionTitle}>データ削除</Text>
         <Text style={styles.accordionChevron}>{dangerOpen ? '▲' : '▼'}</Text>
       </TouchableOpacity>
 
