@@ -12,14 +12,58 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
-import { clampPriority, getPriorityMeta } from '@/constants/priority';
+import { clampPriority } from '@/constants/priority';
 import { categories } from '@/constants/tips';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { deleteTip, getTipById, getTips, updateTip } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
+
+// ─── Source / hero config ────────────────────────────────────────────────────
+
+const KNOWN_SOURCES_SET = new Set(['ChatGPT', 'Claude', 'Codex', 'X', 'YouTube', 'note', 'Web']);
+
+const HERO_GRADIENTS: Record<string, [string, string, string]> = {
+  ChatGPT: ['#0a1a10', '#0d3320', '#155830'],
+  Claude:  ['#0e0828', '#1a1050', '#2d1870'],
+  Codex:   ['#100820', '#1e1045', '#3a1878'],
+  X:       ['#080810', '#121220', '#1a1a28'],
+  YouTube: ['#1a0508', '#3a0c0c', '#5c1212'],
+  note:    ['#0d052a', '#200a4a', '#38106a'],
+  Web:     ['#050d20', '#0a2040', '#123060'],
+  Other:   ['#0e0e2a', '#1a1848', '#261568'],
+};
+
+const SOURCE_CHIP_STYLES: Record<string, { bg: string; text: string }> = {
+  ChatGPT: { bg: 'rgba(52,199,89,0.22)',   text: '#4ade80' },
+  Claude:  { bg: 'rgba(139,92,246,0.22)',  text: '#c084fc' },
+  Codex:   { bg: 'rgba(244,114,182,0.22)', text: '#f472b6' },
+  X:       { bg: 'rgba(200,200,200,0.15)', text: '#e5e5e5' },
+  YouTube: { bg: 'rgba(255,60,50,0.22)',   text: '#ff8080' },
+  note:    { bg: 'rgba(190,100,242,0.22)', text: '#d880f5' },
+  Web:     { bg: 'rgba(90,200,250,0.22)',  text: '#7dd3fc' },
+  Other:   { bg: 'rgba(255,220,80,0.18)',  text: '#fbbf24' },
+};
+
+const PRIORITY_HERO = {
+  high: { bg: 'rgba(255,122,48,0.22)', text: '#ffb070', label: 'HIGH' },
+  mid:  { bg: 'rgba(255,204,0,0.22)',  text: '#ffd585', label: 'MED' },
+  low:  { bg: 'rgba(99,102,241,0.22)', text: '#a5b4fc', label: 'LOW' },
+} as const;
+
+function getSourceKey(category?: string): string {
+  const cat = category?.trim();
+  if (!cat) return 'Other';
+  return KNOWN_SOURCES_SET.has(cat) ? cat : 'Other';
+}
+
+function extractDomain(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return url; }
+}
 
 // ─── View mode ───────────────────────────────────────────────────────────────
 
@@ -31,7 +75,6 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAddToMyTips, onAfterMemoSave 
   onAfterMemoSave: (memo: string) => void;
 }) {
   const priority = clampPriority(tip.priority);
-  const meta = getPriorityMeta(priority);
   const isDone = tip.status === 'done';
   const isTrash = tip.status === 'trash';
   const [afterMemo, setAfterMemo] = useState(tip.afterMemo ?? '');
@@ -50,135 +93,189 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAddToMyTips, onAfterMemoSave 
   const addToMyTips = async () => {
     if (tip.isInMyTips || myTipsSaving) return;
     setMyTipsSaving(true);
-    try {
-      await onAddToMyTips();
-    } finally {
-      setMyTipsSaving(false);
-    }
+    try { await onAddToMyTips(); }
+    finally { setMyTipsSaving(false); }
   };
 
   const createdDate = new Date(tip.createdAt).toLocaleDateString('ja-JP', {
     year: 'numeric', month: 'short', day: 'numeric',
   });
 
+  const srcKey = getSourceKey(tip.category);
+  const heroGrad = (HERO_GRADIENTS[srcKey] ?? HERO_GRADIENTS.Other) as [string, string, string];
+  const srcStyle = SOURCE_CHIP_STYLES[srcKey] ?? SOURCE_CHIP_STYLES.Other;
+  const priHero = priority >= 75 ? PRIORITY_HERO.high : priority >= 50 ? PRIORITY_HERO.mid : PRIORITY_HERO.low;
+  const showCategoryChip = tip.category && tip.category.trim() !== srcKey;
+  const hasMemo = (tip.afterMemo ?? '').length > 0;
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      {/* Header */}
-      <View style={styles.viewHeader}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.backText}>← 戻る</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Screenshot */}
-      {tip.imageUri ? (
-        <Image source={{ uri: tip.imageUri }} style={styles.heroImage} resizeMode="cover" />
-      ) : null}
-
-      {/* Badges */}
-      <View style={styles.badgeRow}>
-        {tip.category ? (
-          <View style={styles.catBadge}>
-            <Text style={styles.catText}>{tip.category}</Text>
-          </View>
-        ) : null}
-        <View style={[styles.priorityBadge, { backgroundColor: meta.background }]}>
-          <Text style={[styles.priorityText, { color: meta.color }]}>
-            {meta.label} · {priority}
-          </Text>
-        </View>
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateText}>{createdDate}</Text>
-        </View>
-      </View>
-
-      {/* Title */}
-      <Text style={styles.viewTitle}>{tip.title || '無題のTips'}</Text>
-
-      {/* Status toggle — prominent */}
-      {!isTrash ? (
-        <TouchableOpacity
-          style={[styles.statusBar, isDone ? styles.statusBarDone : styles.statusBarTodo]}
-          onPress={onToggleStatus}
-          activeOpacity={0.82}
-        >
-          <Text style={[styles.statusBarText, isDone && styles.statusBarTextDone]}>
-            {isDone ? '✓  実行済み  — タップで未実行に戻す' : '✓  実行済みにする'}
-          </Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.trashBadge}>
-          <Text style={styles.trashText}>🗑  不要としてマーク済み</Text>
-        </View>
-      )}
-
-      {/* Content */}
-      {tip.content ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>本文メモ</Text>
-          <Text style={styles.sectionText}>{tip.content}</Text>
-        </View>
-      ) : null}
-
-      {/* Memo */}
-      {tip.memo ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>自分用メモ</Text>
-          <Text style={styles.sectionText}>{tip.memo}</Text>
-        </View>
-      ) : null}
-
-      {/* Source URL */}
-      {tip.sourceUrl ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>参照URL</Text>
-          <TouchableOpacity onPress={() => tip.sourceUrl && Linking.openURL(tip.sourceUrl)} activeOpacity={0.7}>
-            <Text style={styles.urlText} numberOfLines={2}>{tip.sourceUrl}</Text>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.viewContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* ── Hero ── */}
+      <LinearGradient
+        colors={heroGrad}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
+        <View style={styles.heroNav}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.heroBackBtn} activeOpacity={0.75}>
+            <Text style={styles.heroBackText}>← 戻る</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onEdit} style={styles.heroEditChip} activeOpacity={0.75}>
+            <Text style={styles.heroEditChipText}>✏️ 編集</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.heroBadgeRow}>
+          <View style={[styles.heroChip, { backgroundColor: srcStyle.bg }]}>
+            <Text style={[styles.heroChipText, { color: srcStyle.text }]}>{srcKey}</Text>
+          </View>
+          {showCategoryChip ? (
+            <View style={[styles.heroChip, { backgroundColor: 'rgba(255,255,255,0.10)' }]}>
+              <Text style={[styles.heroChipText, { color: 'rgba(255,255,255,0.70)' }]}>{tip.category}</Text>
+            </View>
+          ) : null}
+          <View style={[styles.heroChip, { backgroundColor: priHero.bg }]}>
+            <Text style={[styles.heroChipText, { color: priHero.text }]}>
+              {priHero.label} · {priority}
+            </Text>
+          </View>
+          {isTrash ? (
+            <View style={[styles.heroChip, { backgroundColor: 'rgba(144,144,160,0.18)' }]}>
+              <Text style={[styles.heroChipText, { color: 'rgba(255,255,255,0.45)' }]}>不要</Text>
+            </View>
+          ) : isDone ? (
+            <View style={[styles.heroChip, { backgroundColor: 'rgba(16,185,129,0.22)' }]}>
+              <Text style={[styles.heroChipText, { color: '#6ee7b7' }]}>✓ 実行済み</Text>
+            </View>
+          ) : (
+            <View style={[styles.heroChip, { backgroundColor: 'rgba(99,102,241,0.22)' }]}>
+              <Text style={[styles.heroChipText, { color: '#a5b4fc' }]}>未実行</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.heroTitle}>{tip.title || '無題のTips'}</Text>
+        <Text style={styles.heroDate}>{createdDate} 保存</Text>
+
+        {tip.imageUri ? (
+          <Image source={{ uri: tip.imageUri }} style={styles.heroThumb} resizeMode="cover" />
+        ) : null}
+
+        <View style={styles.heroPriorityTrack}>
+          <View style={[styles.heroPriorityFill, { width: `${priority}%` as any, backgroundColor: priHero.text }]} />
+        </View>
+      </LinearGradient>
+
+      {/* ── Actions ── */}
+      <View style={styles.actionSection}>
+        {!isTrash ? (
+          <TouchableOpacity onPress={onToggleStatus} activeOpacity={0.82} style={styles.actionBtnWrapper}>
+            <LinearGradient
+              colors={isDone ? ['#059669', '#10b981'] : ['#1a1a3c', '#4f46e5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.actionPrimary}
+            >
+              <Text style={[styles.actionPrimaryText, isDone && styles.actionPrimaryTextDone]}>
+                {isDone ? '✓  実行済み  —  タップで未実行に戻す' : '▶  実行済みにする'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.trashNotice}>
+            <Text style={styles.trashNoticeText}>🗑  不要としてマーク済み</Text>
+          </View>
+        )}
+
+        {isDone && !isTrash ? (
+          <TouchableOpacity
+            style={[styles.actionMyTips, tip.isInMyTips && styles.actionMyTipsAdded]}
+            onPress={addToMyTips}
+            activeOpacity={tip.isInMyTips ? 1 : 0.82}
+            disabled={tip.isInMyTips || myTipsSaving}
+          >
+            <Text style={[styles.actionMyTipsText, tip.isInMyTips && styles.actionMyTipsTextAdded]}>
+              {tip.isInMyTips ? '★  MyTips 追加済み' : myTipsSaving ? '追加中...' : '★  MyTipsに追加する'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {/* ── Core Insight ── */}
+      {tip.content ? (
+        <View style={styles.insightCard}>
+          <LinearGradient
+            colors={[colors.accent, colors.purple]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.insightBar}
+          />
+          <View style={styles.insightBody}>
+            <Text style={styles.cardLabel}>CORE INSIGHT</Text>
+            <Text style={styles.insightText}>{tip.content}</Text>
+          </View>
+        </View>
       ) : null}
 
-      {/* After-execution memo */}
-      <View style={styles.afterMemoCard}>
-        <Text style={styles.sectionLabel}>実行後メモ</Text>
+      {/* ── My Plan ── */}
+      {tip.memo ? (
+        <View style={styles.noteCard}>
+          <Text style={styles.cardLabel}>MY PLAN</Text>
+          <Text style={styles.noteText}>{tip.memo}</Text>
+        </View>
+      ) : null}
+
+      {/* ── Source ── */}
+      {tip.sourceUrl ? (
+        <TouchableOpacity
+          style={styles.sourceCard}
+          onPress={() => tip.sourceUrl && Linking.openURL(tip.sourceUrl)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.sourceRow}>
+            <Text style={styles.cardLabel}>SOURCE</Text>
+            <Text style={styles.sourceArrow}>↗</Text>
+          </View>
+          <Text style={styles.sourceDomain}>{extractDomain(tip.sourceUrl)}</Text>
+          <Text style={styles.sourceUrl} numberOfLines={1}>{tip.sourceUrl}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* ── After Action ── */}
+      <View style={[styles.afterCard, hasMemo && styles.afterCardFilled]}>
+        <Text style={[styles.cardLabel, hasMemo && styles.cardLabelLight]}>AFTER ACTION</Text>
         <TextInput
           value={afterMemo}
           onChangeText={setAfterMemo}
           onBlur={saveAfterMemo}
           placeholder="実行してみてどうだったか、気づきを記録..."
-          placeholderTextColor={colors.inkMuted}
+          placeholderTextColor={hasMemo ? 'rgba(255,255,255,0.35)' : colors.inkMuted}
           multiline
-          style={styles.afterMemoInput}
+          style={[styles.afterInput, hasMemo && styles.afterInputDark]}
         />
         {afterMemo !== (tip.afterMemo ?? '') ? (
           <TouchableOpacity
-            style={[styles.saveMemoBtn, afterMemoSaving && { opacity: 0.6 }]}
+            style={[styles.afterSaveBtn, afterMemoSaving && { opacity: 0.6 }]}
             onPress={saveAfterMemo}
             activeOpacity={0.82}
             disabled={afterMemoSaving}
           >
-            <Text style={styles.saveMemoText}>{afterMemoSaving ? '保存中...' : 'メモを保存'}</Text>
+            <Text style={styles.afterSaveText}>{afterMemoSaving ? '保存中...' : 'メモを保存'}</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
-      {/* Bottom edit CTA */}
-      <TouchableOpacity style={styles.editCta} onPress={onEdit} activeOpacity={0.82}>
-        <Text style={styles.editCtaText}>✏️  このTipsを編集する</Text>
-      </TouchableOpacity>
-
-      {isDone && !isTrash ? (
-        <TouchableOpacity
-          style={[styles.myTipsCta, tip.isInMyTips && styles.myTipsCtaAdded]}
-          onPress={addToMyTips}
-          activeOpacity={tip.isInMyTips ? 1 : 0.82}
-          disabled={tip.isInMyTips || myTipsSaving}
-        >
-          <Text style={[styles.myTipsCtaText, tip.isInMyTips && styles.myTipsCtaTextAdded]}>
-            {tip.isInMyTips ? '★  MyTipsに追加済み' : myTipsSaving ? '追加中...' : '★  MyTipsに追加する'}
-          </Text>
+      {/* ── Footer ── */}
+      <View style={styles.viewFooter}>
+        <TouchableOpacity style={styles.editFooterBtn} onPress={onEdit} activeOpacity={0.82}>
+          <Text style={styles.editFooterText}>このTipsを編集する</Text>
         </TouchableOpacity>
-      ) : null}
+      </View>
     </ScrollView>
   );
 }
@@ -479,8 +576,11 @@ export default function TipDetailScreen() {
   if (!tip) {
     return (
       <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backText}>← 戻る</Text>
+        <TouchableOpacity
+          style={{ paddingVertical: 6, paddingRight: 8 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: colors.accent, fontSize: 15, fontWeight: '600' }}>← 戻る</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.inkMuted, fontSize: 15, marginTop: 24 }}>
           Tipsが見つかりません
@@ -515,88 +615,108 @@ export default function TipDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
-  content: {
+
+  // ── View mode ──────────────────────────────────────────────────────────────
+
+  viewContent: {
     gap: spacing.md,
-    padding: spacing.lg,
     paddingBottom: 120,
-    paddingTop: Platform.OS === 'ios' ? 56 : spacing.lg,
   },
 
-  // View header
-  viewHeader: {
+  // Hero
+  hero: {
+    gap: spacing.sm,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 56 : spacing.xl,
+  },
+  heroNav: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
-  backBtn: { paddingVertical: 6, paddingRight: spacing.sm },
-  backText: { color: colors.accent, fontSize: 15, fontWeight: '600' },
-  heroImage: {
-    borderRadius: radius.xl,
-    height: 220,
-    width: '100%',
-    backgroundColor: colors.border,
+  heroBackBtn: { paddingRight: spacing.sm, paddingVertical: 6 },
+  heroBackText: { color: 'rgba(255,255,255,0.82)', fontSize: 15, fontWeight: '600' },
+  heroEditChip: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
-
-  badgeRow: {
+  heroEditChipText: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontWeight: '600' },
+  heroBadgeRow: {
     alignItems: 'center',
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  catBadge: {
-    backgroundColor: colors.ink,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
+  heroChip: {
+    borderRadius: radius.sm,
+    paddingHorizontal: 9,
     paddingVertical: 4,
   },
-  catText: { color: '#ffffff', fontSize: 11, fontWeight: '600' },
-  priorityBadge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  priorityText: { fontSize: 11, fontWeight: '700' },
-  dateBadge: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    ...shadow.cardSoft,
-  },
-  dateText: { color: colors.inkMuted, fontSize: 11 },
-
-  viewTitle: {
-    color: colors.ink,
+  heroChipText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
+  heroTitle: {
+    color: '#ffffff',
     fontSize: 26,
     fontWeight: '800',
     letterSpacing: -0.5,
     lineHeight: 34,
+    marginTop: spacing.xs,
+  },
+  heroDate: { color: 'rgba(255,255,255,0.45)', fontSize: 11 },
+  heroThumb: {
+    borderRadius: radius.lg,
+    height: 160,
+    marginTop: spacing.sm,
+    width: '100%',
+  },
+  heroPriorityTrack: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 2,
+    height: 3,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  heroPriorityFill: {
+    borderRadius: 2,
+    height: 3,
+    opacity: 0.75,
   },
 
-  // Status bar
-  statusBar: {
+  // Actions
+  actionSection: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  actionBtnWrapper: {
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    ...shadow.button,
+  },
+  actionPrimary: {
     alignItems: 'center',
     borderRadius: radius.lg,
-    borderWidth: 1.5,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
-  statusBarTodo: {
-    backgroundColor: colors.bgElevated,
-    borderColor: colors.border,
-  },
-  statusBarDone: {
-    backgroundColor: '#e6f9f0',
-    borderColor: colors.green,
-  },
-  statusBarText: {
-    color: colors.inkSub,
-    fontSize: 14,
+  actionPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
     fontWeight: '700',
   },
-  statusBarTextDone: { color: colors.green },
-
-  trashBadge: {
+  actionPrimaryTextDone: { color: '#d1fae5' },
+  actionMyTips: {
+    alignItems: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.lg,
+    paddingVertical: 14,
+  },
+  actionMyTipsAdded: { backgroundColor: '#f3e8ff' },
+  actionMyTipsText: { color: colors.accentDeep, fontSize: 14, fontWeight: '700' },
+  actionMyTipsTextAdded: { color: '#7c3aed' },
+  trashNotice: {
     alignItems: 'center',
     backgroundColor: colors.bg,
     borderColor: colors.border,
@@ -604,73 +724,131 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: 12,
   },
-  trashText: { color: colors.inkMuted, fontSize: 13 },
+  trashNoticeText: { color: colors.inkMuted, fontSize: 13 },
 
-  section: {
-    backgroundColor: colors.bgElevated,
+  // Core Insight
+  insightCard: {
+    backgroundColor: 'rgba(99,102,241,0.04)',
+    borderColor: 'rgba(99,102,241,0.10)',
     borderRadius: radius.lg,
-    gap: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginHorizontal: spacing.md,
+    overflow: 'hidden',
+    ...shadow.card,
+  },
+  insightBar: {
+    width: 5,
+  },
+  insightBody: {
+    flex: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  cardLabel: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  cardLabelLight: {
+    color: 'rgba(255,255,255,0.50)',
+  },
+  insightText: {
+    color: colors.ink,
+    fontSize: 16,
+    lineHeight: 26,
+  },
+
+  // My Plan
+  noteCard: {
+    backgroundColor: '#fffdf5',
+    borderRadius: radius.lg,
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
     padding: spacing.md,
     ...shadow.cardSoft,
   },
-  sectionLabel: {
-    color: colors.inkMuted,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  sectionText: { color: colors.ink, fontSize: 14, lineHeight: 22 },
-  urlText: {
-    color: colors.accent,
-    fontSize: 13,
-    lineHeight: 20,
-    textDecorationLine: 'underline',
-  },
+  noteText: { color: colors.inkSub, fontSize: 14, lineHeight: 22 },
 
-  afterMemoCard: {
+  // Source
+  sourceCard: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    gap: 6,
+    marginHorizontal: spacing.md,
+    padding: spacing.md,
+    ...shadow.cardSoft,
+  },
+  sourceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sourceArrow: { color: colors.accent, fontSize: 15, fontWeight: '700' },
+  sourceDomain: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  sourceUrl: { color: colors.inkMuted, fontSize: 11, lineHeight: 16 },
+
+  // After Action
+  afterCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.lg,
     gap: spacing.sm,
+    marginHorizontal: spacing.md,
     padding: spacing.md,
     ...shadow.card,
   },
-  afterMemoInput: {
+  afterCardFilled: {
+    backgroundColor: '#1a1a2e',
+  },
+  afterInput: {
     color: colors.ink,
     fontSize: 14,
     lineHeight: 22,
     minHeight: 72,
     textAlignVertical: 'top',
   },
-  saveMemoBtn: {
+  afterInputDark: {
+    color: '#e5e5ff',
+  },
+  afterSaveBtn: {
     alignItems: 'center',
     backgroundColor: colors.accent,
     borderRadius: radius.md,
     paddingVertical: 10,
   },
-  saveMemoText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  afterSaveText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
 
-  editCta: {
+  // View footer
+  viewFooter: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  editFooterBtn: {
     alignItems: 'center',
     backgroundColor: colors.bgElevated,
-    borderColor: colors.ink,
+    borderColor: colors.borderStrong,
     borderRadius: radius.lg,
     borderWidth: 1.5,
-    paddingVertical: 15,
+    paddingVertical: 14,
     ...shadow.cardSoft,
   },
-  editCtaText: { color: colors.ink, fontSize: 15, fontWeight: '700' },
-  myTipsCta: {
-    alignItems: 'center',
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.lg,
-    paddingVertical: 15,
-  },
-  myTipsCtaAdded: { backgroundColor: colors.bgElevated },
-  myTipsCtaText: { color: colors.accentDeep, fontSize: 15, fontWeight: '700' },
-  myTipsCtaTextAdded: { color: colors.inkMuted },
+  editFooterText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
 
-  // Edit header
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+
+  content: {
+    gap: spacing.md,
+    padding: spacing.lg,
+    paddingBottom: 120,
+    paddingTop: Platform.OS === 'ios' ? 56 : spacing.lg,
+  },
+
   editHeader: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -692,7 +870,6 @@ const styles = StyleSheet.create({
   },
   saveBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
 
-  // Edit fields
   fieldCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
@@ -744,11 +921,11 @@ const styles = StyleSheet.create({
 
   statusRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 4 },
   statusChip: {
+    alignItems: 'center',
     borderColor: colors.border,
     borderRadius: radius.pill,
     borderWidth: 1.5,
     flex: 1,
-    alignItems: 'center',
     paddingVertical: 9,
   },
   statusChipText: { color: colors.inkSub, fontSize: 12, fontWeight: '700' },

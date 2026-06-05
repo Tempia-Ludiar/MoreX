@@ -51,37 +51,109 @@ function formatDateHint(scheduledDate?: string): string {
   return `${Math.ceil(diff / 7)}週後`;
 }
 
-// ── Hero Card ────────────────────────────────────────────────
-function HeroCard({ tip }: { tip: Tip }) {
-  const srcKey = getSourceKey(tip.category);
+// ── Progress Board ────────────────────────────────────────────
+function ProgressBoard({
+  statusFilter,
+  onFilter,
+  counts,
+}: {
+  statusFilter: StatusFilter;
+  onFilter: (f: StatusFilter) => void;
+  counts: { all: number; todo: number; done: number };
+}) {
+  const doneRatio = counts.all > 0 ? counts.done / counts.all : 0;
+  const allDone = counts.todo === 0 && counts.all > 0;
+
+  const filterCards: Array<{
+    key: StatusFilter;
+    label: string;
+    count: number;
+    inactiveBg: string;
+    activeBg: string;
+    inactiveCount: string;
+    inactiveLabel: string;
+  }> = [
+    {
+      key: all,
+      label: 'すべて',
+      count: counts.all,
+      inactiveBg: 'rgba(255,255,255,0.08)',
+      activeBg: 'rgba(255,255,255,0.20)',
+      inactiveCount: 'rgba(255,255,255,0.60)',
+      inactiveLabel: 'rgba(255,255,255,0.42)',
+    },
+    {
+      key: 'todo',
+      label: '未実行',
+      count: counts.todo,
+      inactiveBg: 'rgba(99,102,241,0.15)',
+      activeBg: 'rgba(99,102,241,0.52)',
+      inactiveCount: '#a5b4fc',
+      inactiveLabel: 'rgba(165,180,252,0.70)',
+    },
+    {
+      key: 'done',
+      label: '実行済み',
+      count: counts.done,
+      inactiveBg: 'rgba(16,185,129,0.15)',
+      activeBg: 'rgba(16,185,129,0.48)',
+      inactiveCount: '#6ee7b7',
+      inactiveLabel: 'rgba(110,231,183,0.70)',
+    },
+  ];
+
   return (
-    <TouchableOpacity activeOpacity={0.88} onPress={() => router.push(`/tips/${tip.id}`)}>
-      <LinearGradient
-        colors={['#0e0e28', '#261558', '#162040']}
-        locations={[0, 0.52, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.hero}
-      >
-        <View style={styles.heroDeco}><Text style={{ fontSize: 20 }}>🎯</Text></View>
-        <View style={styles.heroLabelRow}>
-          <Text style={{ fontSize: 12 }}>⭐</Text>
-          <Text style={styles.heroLabelText}>今日のTODO・最優先</Text>
+    <LinearGradient
+      colors={['#0e0e28', '#1e1458', '#0e1a32']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.pb}
+    >
+      <View style={styles.pbTop}>
+        <View style={styles.pbEyebrowRow}>
+          <View style={styles.pbDot} />
+          <Text style={styles.pbEyebrow}>今日の進捗</Text>
         </View>
-        <Text style={styles.heroTitle} numberOfLines={2}>{tip.title || '無題のTips'}</Text>
-        {(tip.memo || tip.content) ? (
-          <Text style={styles.heroMemo} numberOfLines={2}>{tip.memo || tip.content}</Text>
-        ) : null}
-        <View style={styles.heroFoot}>
-          <View style={styles.heroChip}>
-            <Text style={styles.heroChipText}>{srcKey}</Text>
-          </View>
-          <View style={styles.heroBtn}>
-            <Text style={styles.heroBtnText}>実行する →</Text>
-          </View>
+        <Text style={styles.pbTitle}>
+          {allDone ? '今日もよくやりました！' : '未実行をひとつ減らそう'}
+        </Text>
+        <Text style={styles.pbSub}>
+          {counts.done > 0
+            ? `${counts.done}件完了・${counts.todo}件残り`
+            : counts.all === 0
+            ? 'Tipsを追加して進めよう'
+            : `${counts.todo}件の未実行Tipsがあります`}
+        </Text>
+        <View style={styles.pbTrack}>
+          <View style={[styles.pbFill, { width: `${Math.round(doneRatio * 100)}%` as any }]} />
         </View>
-      </LinearGradient>
-    </TouchableOpacity>
+      </View>
+
+      <View style={styles.pbCardRow}>
+        {filterCards.map((card) => {
+          const isActive = statusFilter === card.key;
+          return (
+            <TouchableOpacity
+              key={String(card.key)}
+              onPress={() => onFilter(card.key)}
+              activeOpacity={0.78}
+              style={[
+                styles.pbCard,
+                { backgroundColor: isActive ? card.activeBg : card.inactiveBg },
+                isActive && styles.pbCardSelected,
+              ]}
+            >
+              <Text style={[styles.pbCardCount, { color: isActive ? '#ffffff' : card.inactiveCount }]}>
+                {card.count}
+              </Text>
+              <Text style={[styles.pbCardLabel, { color: isActive ? 'rgba(255,255,255,0.88)' : card.inactiveLabel }]}>
+                {card.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -272,11 +344,6 @@ export default function TodoScreen() {
     done:  visibleTips.filter((t) => t.status === 'done').length,
   }), [visibleTips]);
 
-  const heroTip = useMemo(
-    () => visibleTips.filter((t) => t.status !== 'done').sort((a, b) => b.priority - a.priority)[0] ?? null,
-    [visibleTips],
-  );
-
   const filteredTips = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return visibleTips
@@ -296,12 +363,6 @@ export default function TodoScreen() {
   const mediumTips = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority >= 50 && t.priority < 75), [filteredTips]);
   const lowTips = useMemo(() => filteredTips.filter((t) => t.status !== 'done' && t.priority < 50), [filteredTips]);
   const doneTips = useMemo(() => filteredTips.filter((t) => t.status === 'done'), [filteredTips]);
-
-  const statusOptions: Array<{ key: StatusFilter; label: string; count: number }> = [
-    { key: all,     label: 'すべて', count: statusCounts.all },
-    { key: 'todo',  label: '未実行', count: statusCounts.todo },
-    { key: 'done',  label: '完了',   count: statusCounts.done },
-  ];
 
   const sourceOptions: string[] = [all, ...KNOWN_SOURCES, 'Other'];
 
@@ -323,12 +384,12 @@ export default function TodoScreen() {
         </Text>
       </View>
 
-      {/* Hero */}
-      {heroTip ? (
-        <View style={styles.heroWrap}>
-          <HeroCard tip={heroTip} />
-        </View>
-      ) : null}
+      {/* Progress Board */}
+      <ProgressBoard
+        statusFilter={statusFilter}
+        onFilter={setStatusFilter}
+        counts={statusCounts}
+      />
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -349,29 +410,6 @@ export default function TodoScreen() {
           </TouchableOpacity>
         ) : null}
       </View>
-
-      {/* Status filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {statusOptions.map((opt) => (
-          <TouchableOpacity
-            key={String(opt.key)}
-            style={[styles.seg, statusFilter === opt.key && styles.segActive]}
-            onPress={() => setStatusFilter(opt.key)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.segText, statusFilter === opt.key && styles.segTextActive]}>
-              {opt.label}
-            </Text>
-            {opt.count > 0 ? (
-              <View style={[styles.segBadge, statusFilter === opt.key && styles.segBadgeActive]}>
-                <Text style={[styles.segBadgeText, statusFilter === opt.key && styles.segBadgeTextActive]}>
-                  {opt.count}
-                </Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
 
       {/* Source filter */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -495,49 +533,60 @@ const styles = StyleSheet.create({
   headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
   headerSub: { color: colors.inkMuted, fontSize: 12 },
 
-  // Hero
-  heroWrap: { marginHorizontal: spacing.md },
-  hero: {
+  // Progress Board
+  pb: {
     borderRadius: radius.xxl,
-    elevation: 8,
-    gap: spacing.sm,
+    elevation: 10,
+    gap: spacing.md,
+    marginHorizontal: spacing.md,
     overflow: 'hidden',
     padding: spacing.lg,
-    shadowColor: '#1a1a2e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
+    shadowColor: '#0e0e28',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.50,
     shadowRadius: 24,
   },
-  heroDeco: {
+  pbTop: { gap: 5 },
+  pbEyebrowRow: { alignItems: 'center', flexDirection: 'row', gap: 6, marginBottom: 2 },
+  pbDot: { backgroundColor: '#a5b4fc', borderRadius: 3, height: 6, width: 6 },
+  pbEyebrow: { color: '#a5b4fc', fontSize: 10.5, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  pbTitle: { color: '#ffffff', fontSize: 18, fontWeight: '800', letterSpacing: -0.3, lineHeight: 24 },
+  pbSub: { color: 'rgba(255,255,255,0.52)', fontSize: 12, lineHeight: 18 },
+  pbTrack: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 3,
+    height: 4,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
+  },
+  pbFill: {
+    backgroundColor: '#6ee7b7',
+    borderRadius: 3,
+    height: 4,
+  },
+  pbCardRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2 },
+  pbCard: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 21,
-    height: 42,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: spacing.md,
-    top: spacing.md,
-    width: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+    flex: 1,
+    gap: 2,
+    paddingVertical: 12,
   },
-  heroLabelRow: { alignItems: 'center', flexDirection: 'row', gap: 5 },
-  heroLabelText: { color: '#ffb347', fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-  heroTitle: { color: '#ffffff', fontSize: 17, fontWeight: '800', letterSpacing: -0.25, lineHeight: 24, paddingRight: 52 },
-  heroMemo: { color: 'rgba(255,255,255,0.68)', fontSize: 12, lineHeight: 20, paddingRight: 52 },
-  heroFoot: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.xs },
-  heroChip: { backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: radius.sm, paddingHorizontal: 11, paddingVertical: 5 },
-  heroChipText: { color: 'rgba(255,255,255,0.9)', fontSize: 11.5, fontWeight: '700' },
-  heroBtn: {
-    backgroundColor: colors.orange,
-    borderRadius: radius.pill,
-    elevation: 4,
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    shadowColor: colors.orange,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+  pbCardSelected: {
+    borderColor: 'rgba(255,255,255,0.28)',
   },
-  heroBtnText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  pbCardCount: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  pbCardLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+  },
 
   // Search
   searchRow: {
@@ -557,23 +606,6 @@ const styles = StyleSheet.create({
 
   // Filter rows
   filterRow: { gap: 7, paddingHorizontal: spacing.md, paddingBottom: 2 },
-  seg: {
-    alignItems: 'center',
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.pill,
-    flexDirection: 'row',
-    gap: 5,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    ...shadow.cardSoft,
-  },
-  segActive: { backgroundColor: colors.ink },
-  segText: { color: colors.inkSub, fontSize: 12.5, fontWeight: '600' },
-  segTextActive: { color: '#ffffff' },
-  segBadge: { backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 1 },
-  segBadgeActive: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  segBadgeText: { color: colors.inkSub, fontSize: 10.5, fontWeight: '700' },
-  segBadgeTextActive: { color: '#ffffff' },
 
   srcBtn: { backgroundColor: colors.bgElevated, borderRadius: radius.xl, paddingHorizontal: 12, paddingVertical: 6, ...shadow.cardSoft },
   srcBtnActive: { backgroundColor: colors.ink },
