@@ -25,8 +25,8 @@ Plus should not be a random bundle of many features. The first version of Plus i
 
 ## Free Limits
 
-- Saved Tips: 100
-- MyTips: 20
+- Saved Tips: 50
+- MyTips: 10
 - Custom categories: 5
 
 Important:

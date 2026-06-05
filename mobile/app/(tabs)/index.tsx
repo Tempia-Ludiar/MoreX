@@ -17,6 +17,7 @@ import Svg, { Path } from 'react-native-svg';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
 import { BillingPlan } from '@/constants/billing';
+import { getCategorySuggestions } from '@/constants/categorySuggestions';
 import { colors, radius, shadow, spacing } from '@/theme';
 import {
   countCustomCategories,
@@ -27,7 +28,6 @@ import {
 } from '@/lib/billing';
 import { getPendingTipDraft, savePendingTipDraft } from '@/lib/pendingTipDraft';
 import {
-  LINK_PREVIEW_TYPES,
   detectLinkPreviewType,
   fetchLinkPreview,
   normalizeUrl,
@@ -36,7 +36,6 @@ import {
 } from '@/lib/linkPreview';
 import { addUserCategory, getUserCategories } from '@/lib/userCategories';
 
-const CONTENT_TYPES = LINK_PREVIEW_TYPES;
 type ContentType = LinkPreviewType;
 
 const PREVIEW_META: Record<ContentType, { label: string; colors: [string, string, string] }> = {
@@ -68,7 +67,6 @@ export default function AddScreen() {
   const [showOptional, setShowOptional] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [priorityChanged, setPriorityChanged] = useState(false);
-  const [contentType, setContentType] = useState<ContentType | ''>('');
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
   const [managedCategories, setManagedCategories] = useState<string[]>([]);
@@ -91,10 +89,19 @@ export default function AddScreen() {
     });
   }, []));
 
-  const usedCategories = useMemo(
-    () => managedCategories.slice(0, 18),
-    [managedCategories],
-  );
+  const previewType = linkPreview?.type || detectLinkPreviewType(sourceUrl);
+  const usedCategories = useMemo(() => {
+    const recommended = sourceUrl.trim() ? getCategorySuggestions(previewType) : [];
+    const seen = new Set<string>();
+    return [...recommended, ...managedCategories]
+      .filter((cat) => {
+        const key = cat.trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 18);
+  }, [managedCategories, previewType, sourceUrl]);
   useEffect(() => {
     const url = sourceUrl.trim();
     let cancelled = false;
@@ -122,7 +129,6 @@ export default function AddScreen() {
     };
   }, [sourceUrl]);
 
-  const previewType = contentType || linkPreview?.type || detectLinkPreviewType(sourceUrl);
   const previewMeta = PREVIEW_META[previewType];
   const previewImage = linkPreview?.image;
   const previewTitle = linkPreview?.title || linkPreview?.siteName || previewMeta.label;
@@ -155,7 +161,6 @@ export default function AddScreen() {
     setShowOptional(false);
     setShowPriority(false);
     setPriorityChanged(false);
-    setContentType('');
     setLinkPreview(null);
     setLinkPreviewLoading(false);
   };
@@ -283,101 +288,81 @@ export default function AddScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}
-          >
-            {CONTENT_TYPES.map((type) => (
-              <TouchableOpacity
-                key={type}
-                style={[styles.chip, contentType === type && styles.chipOn]}
-                onPress={() => setContentType((prev) => (prev === type ? '' : type))}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.chipText, contentType === type && styles.chipTextOn]}>
-                  {type}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <Text style={styles.urlNote}>URLをMoreXに貼ると、コンテンツ情報を正確に取得できます</Text>
+          <Text style={styles.urlNote}>
+            URLを貼ると種類を自動判定し、取得できる場合はプレビューを表示します
+          </Text>
+          {sourceUrl.trim().length > 0 && (
+            <View style={styles.inlinePreview}>
+              <View style={styles.inlinePreviewHeader}>
+                <Text style={styles.inlinePreviewLabel}>リンクプレビュー</Text>
+                <Text style={styles.inlinePreviewType}>{previewType}</Text>
+              </View>
+              <View style={[styles.inlinePreviewCard, styles.cardClip]}>
+                {previewImage ? (
+                  <View style={styles.prevImageWrap}>
+                    <Image source={{ uri: previewImage }} style={styles.prevImage} resizeMode="cover" />
+                    <LinearGradient
+                      colors={['rgba(0,0,0,0.58)', 'rgba(0,0,0,0.06)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={styles.prevImageShade}
+                    />
+                    <View style={styles.prevSvc}>
+                      <Text style={styles.prevSvcText}>{previewType}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <LinearGradient
+                    colors={previewMeta.colors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.prevBanner}
+                  >
+                    <View style={styles.prevSvc}>
+                      <Text style={styles.prevSvcText}>{previewType}</Text>
+                    </View>
+                    <Text style={styles.prevFallbackText}>{previewMeta.label}</Text>
+                    <Text style={styles.prevFallbackNote}>
+                      {linkPreviewLoading ? 'プレビュー取得中...' : 'リンク先プレビュー'}
+                    </Text>
+                  </LinearGradient>
+                )}
+                <View style={styles.prevBody}>
+                  <Text style={styles.prevTitle} numberOfLines={2}>{previewTitle}</Text>
+                  {previewDescription && (
+                    <Text style={styles.prevDesc} numberOfLines={2}>{previewDescription}</Text>
+                  )}
+                  {!previewImage && !linkPreviewLoading && (
+                    <Text style={styles.prevFallbackHelp}>
+                      このリンクは画像なしでも保存できます
+                    </Text>
+                  )}
+                  <View style={styles.prevFoot}>
+                    <Text style={styles.prevUrlTiny} numberOfLines={1}>{previewUrl}</Text>
+                    <TouchableOpacity
+                      style={styles.openBtn}
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        Linking.openURL(previewUrl).catch(() =>
+                          Alert.alert('URLを開けませんでした'),
+                        )
+                      }
+                    >
+                      <Text style={styles.openBtnText}>URLを開く</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
-      {/* ── Section 2: プレビュー（URL入力時のみ表示） ── */}
-      {sourceUrl.trim().length > 0 && (
-        <View style={styles.sec}>
-          <View style={styles.secLabel}>
-            <View style={[styles.secNum, { backgroundColor: colors.accent }]}>
-              <Text style={styles.secNumText}>2</Text>
-            </View>
-            <Text style={styles.secName}>プレビュー</Text>
-          </View>
-          <View style={[styles.card, styles.cardClip]}>
-            {previewImage ? (
-              <View style={styles.prevImageWrap}>
-                <Image source={{ uri: previewImage }} style={styles.prevImage} resizeMode="cover" />
-                <LinearGradient
-                  colors={['rgba(0,0,0,0.58)', 'rgba(0,0,0,0.06)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={styles.prevImageShade}
-                />
-                <View style={styles.prevSvc}>
-                  <Text style={styles.prevSvcText}>{previewType}</Text>
-                </View>
-              </View>
-            ) : (
-              <LinearGradient
-                colors={previewMeta.colors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.prevBanner}
-              >
-                <View style={styles.prevSvc}>
-                  <Text style={styles.prevSvcText}>{previewType}</Text>
-                </View>
-                <Text style={styles.prevFallbackText}>{previewMeta.label}</Text>
-                <Text style={styles.prevFallbackNote}>
-                  {linkPreviewLoading ? 'プレビュー取得中...' : 'リンク先プレビュー'}
-                </Text>
-              </LinearGradient>
-            )}
-            <View style={styles.prevBody}>
-              <Text style={styles.prevTitle} numberOfLines={2}>{previewTitle}</Text>
-              {previewDescription && (
-                <Text style={styles.prevDesc} numberOfLines={2}>{previewDescription}</Text>
-              )}
-              {!previewImage && !linkPreviewLoading && (
-                <Text style={styles.prevFallbackHelp}>
-                  このリンクは画像なしでも保存できます
-                </Text>
-              )}
-              <View style={styles.prevFoot}>
-                <Text style={styles.prevUrlTiny} numberOfLines={1}>{previewUrl}</Text>
-                <TouchableOpacity
-                  style={styles.openBtn}
-                  activeOpacity={0.8}
-                  onPress={() =>
-                    Linking.openURL(previewUrl).catch(() =>
-                      Alert.alert('URLを開けませんでした'),
-                    )
-                  }
-                >
-                  <Text style={styles.openBtnText}>URLを開く</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* ── Section 3: Important details ── */}
+      {/* ── Section 2: Important details ── */}
       <View style={styles.sec}>
         <View style={styles.secLabel}>
           <View style={[styles.secNum, { backgroundColor: '#d9610a' }]}>
-            <Text style={styles.secNumText}>3</Text>
+            <Text style={styles.secNumText}>2</Text>
           </View>
           <Text style={styles.secName}>あとで使える形にする</Text>
           <View style={styles.tagOrange}>
@@ -419,15 +404,7 @@ export default function AddScreen() {
           </View>
           </View>
           <View style={[styles.importantField, styles.importantFieldLast]}>
-            <View style={styles.importantLabelRow}>
-              <Text style={styles.importantLabel}>カテゴリ</Text>
-              <TouchableOpacity
-                onPress={() => router.push('/settings/categories')}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.manageCategoryLink}>設定で管理</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.importantLabel}>カテゴリ</Text>
             <TextInput
               value={category}
               onChangeText={setCategory}
@@ -435,6 +412,11 @@ export default function AddScreen() {
               placeholderTextColor={colors.inkMuted}
               style={styles.importantInput}
             />
+            {sourceUrl.trim().length > 0 && (
+              <Text style={styles.categorySuggestNote}>
+                {previewType}に合いそうな候補を先に表示しています
+              </Text>
+            )}
             <View style={styles.tagRow}>
               {usedCategories.map((cat) => (
                 <TouchableOpacity
@@ -462,11 +444,11 @@ export default function AddScreen() {
         </View>
       </View>
 
-      {/* ── Section 4: Priority ── */}
+      {/* ── Section 3: Priority ── */}
       <View style={styles.sec}>
         <View style={styles.secLabel}>
           <View style={[styles.secNum, { backgroundColor: '#c7c7cc' }]}>
-            <Text style={styles.secNumText}>4</Text>
+            <Text style={styles.secNumText}>3</Text>
           </View>
           <Text style={styles.secName}>優先度</Text>
         </View>
@@ -497,11 +479,11 @@ export default function AddScreen() {
         </View>
       </View>
 
-      {/* ── Section 5: Optional extras ── */}
+      {/* ── Section 4: Optional extras ── */}
       <View style={styles.sec}>
         <View style={styles.secLabel}>
           <View style={[styles.secNum, { backgroundColor: '#c7c7cc' }]}>
-            <Text style={styles.secNumText}>5</Text>
+            <Text style={styles.secNumText}>4</Text>
           </View>
           <Text style={styles.secName}>その他の情報（任意）</Text>
         </View>
@@ -556,18 +538,6 @@ export default function AddScreen() {
         <Text style={styles.saveNote}>次の画面で内容を確認してから保存します</Text>
       </View>
 
-      {/* ── ヒントカード ── */}
-      <View style={styles.hintCard}>
-        <View style={styles.hintIcon}>
-          <Text style={styles.hintIconText}>M</Text>
-        </View>
-        <View style={styles.hintBody}>
-          <Text style={styles.hintTitle}>URLをコピーして貼り付けるだけ</Text>
-          <Text style={styles.hintDesc}>
-            X・YouTube・note・Web記事などのURLをコピーし、上の入力欄へ貼り付けてください
-          </Text>
-        </View>
-      </View>
     </ScrollView>
   );
 }
@@ -647,21 +617,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   urlClearText: { color: '#fff', fontSize: 11, fontWeight: '700', lineHeight: 13 },
-  chipsRow: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  chip: {
+  urlNote: { fontSize: 10.5, color: colors.inkMuted, lineHeight: 15, paddingHorizontal: 14, paddingVertical: 10 },
+  inlinePreview: {
+    borderTopColor: 'rgba(0,0,0,0.09)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+    padding: 12,
+    paddingTop: 10,
+  },
+  inlinePreviewHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  inlinePreviewLabel: { color: colors.ink, fontSize: 12, fontWeight: '800' },
+  inlinePreviewType: {
     backgroundColor: colors.accentSoft,
     borderRadius: radius.pill,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    color: colors.accentDeep,
+    fontSize: 10.5,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
-  chipOn: { backgroundColor: colors.accent },
-  chipText: { fontSize: 11.5, fontWeight: '600', color: colors.accent },
-  chipTextOn: { color: '#fff' },
-  urlNote: { fontSize: 10.5, color: colors.inkMuted, paddingHorizontal: 14, paddingBottom: 10 },
+  inlinePreviewCard: {
+    backgroundColor: colors.bgElevated,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
 
-  // Section 2: Preview
+  // Inline preview
   prevBanner: { alignItems: 'center', height: 100, justifyContent: 'center' },
-  prevImageWrap: { height: 148, overflow: 'hidden', backgroundColor: colors.ink },
+  prevImageWrap: { height: 132, overflow: 'hidden', backgroundColor: colors.ink },
   prevImage: { height: '100%', width: '100%' },
   prevImageShade: {
     ...StyleSheet.absoluteFillObject,
@@ -692,7 +678,7 @@ const styles = StyleSheet.create({
   },
   openBtnText: { fontSize: 11.5, fontWeight: '600', color: colors.accent },
 
-  // Section 3: Important details
+  // Section 2: Important details
   useTextarea: {
     backgroundColor: '#f2f2f7',
     borderRadius: 10,
@@ -724,13 +710,7 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   importantFieldLast: { borderBottomWidth: 0 },
-  importantLabelRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
   importantLabel: { color: colors.ink, fontSize: 12, fontWeight: '700' },
-  manageCategoryLink: { color: colors.accentDeep, fontSize: 11, fontWeight: '800' },
   importantInput: {
     backgroundColor: '#f2f2f7',
     borderRadius: 10,
@@ -739,8 +719,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
+  categorySuggestNote: { color: colors.inkMuted, fontSize: 10.5, lineHeight: 15 },
 
-  // Section 4: Priority
+  // Section 3: Priority
   prioritySummary: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -754,7 +735,7 @@ const styles = StyleSheet.create({
   priorityChange: { color: colors.accent, fontSize: 12, fontWeight: '700', marginLeft: 12 },
   priorityControls: { paddingHorizontal: 14, paddingBottom: 14 },
 
-  // Section 5: Collapsible extras
+  // Section 4: Collapsible extras
   collHd: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -826,28 +807,4 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#ffffff', fontSize: 16, fontWeight: '700', letterSpacing: 0.1 },
   saveNote: { textAlign: 'center', fontSize: 11, color: colors.inkMuted, marginTop: 6 },
 
-  // Hint card
-  hintCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 12,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 8,
-    ...shadow.cardSoft,
-  },
-  hintIcon: {
-    width: 36,
-    height: 36,
-    backgroundColor: colors.accent,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  hintIconText: { fontSize: 15, fontWeight: '800', color: '#fff' },
-  hintBody: { flex: 1 },
-  hintTitle: { fontSize: 12, fontWeight: '700', color: colors.ink, marginBottom: 3 },
-  hintDesc: { fontSize: 11, color: colors.inkMuted, lineHeight: 16 },
 });

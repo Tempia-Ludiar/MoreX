@@ -117,7 +117,7 @@ export default function CategorySettingsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.75}>
-        <Text style={styles.backText}>← Settingsへ戻る</Text>
+        <Text style={styles.backText}>← 戻る</Text>
       </TouchableOpacity>
 
       <ScreenHeader

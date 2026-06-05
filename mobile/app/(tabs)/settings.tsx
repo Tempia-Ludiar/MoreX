@@ -18,13 +18,6 @@ import { getUserCategories } from '@/lib/userCategories';
 
 const WAITLIST_KEY = 'morex.waitlist.email.v0';
 
-const plusFeatures = [
-  { icon: '📚', label: '保存Tips無制限', desc: '数を気にせず蓄積' },
-  { icon: '★', label: 'MyTips無制限', desc: '役立った学びをすべて保存' },
-  { icon: '🏷', label: 'カテゴリ無制限', desc: '自分用の分類を自由に作成' },
-  { icon: '🕰', label: '将来追加予定', desc: 'Collections・再浮上リマインド' },
-];
-
 export default function SettingsScreen() {
   const [dangerOpen, setDangerOpen] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -125,24 +118,6 @@ export default function SettingsScreen() {
           <UsageItem label="カスタムカテゴリ" value={formatUsage(plan, 'customCategories', customCategoryCount)} />
         </View>
         <Text style={styles.planNote}>Plusは¥{PLUS_PRICE_JPY}/月で、保存・MyTips・カテゴリを無制限にできます。</Text>
-      </View>
-
-      {/* Plus features — compact 2×2 grid */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Plus機能</Text>
-        <View style={styles.comingSoonBadge}>
-          <Text style={styles.comingSoonText}>Coming Soon</Text>
-        </View>
-      </View>
-
-      <View style={styles.plusGrid}>
-        {plusFeatures.map((feature) => (
-          <View style={styles.plusCard} key={feature.label}>
-            <Text style={styles.plusIcon}>{feature.icon}</Text>
-            <Text style={styles.plusLabel}>{feature.label}</Text>
-            <Text style={styles.plusDesc}>{feature.desc}</Text>
-          </View>
-        ))}
       </View>
 
       <View style={styles.sectionHeader}>
@@ -268,32 +243,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
   },
-  comingSoonBadge: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.pill,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-  },
-  comingSoonText: { color: colors.accent, fontSize: 10, fontWeight: '700' },
-
-  // Plus 2×2 grid
-  plusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  plusCard: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.lg,
-    gap: 4,
-    padding: spacing.md,
-    width: '48%',
-    ...shadow.cardSoft,
-  },
-  plusIcon: { fontSize: 20 },
-  plusLabel: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 2 },
-  plusDesc: { color: colors.inkSub, fontSize: 11, lineHeight: 15 },
-
   // Notification CTA card
   notifyCard: {
     backgroundColor: colors.accentSoft,

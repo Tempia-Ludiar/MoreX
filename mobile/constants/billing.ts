@@ -3,8 +3,8 @@ export type BillingPlan = 'free' | 'plus';
 export const PLUS_PRICE_JPY = 680;
 
 export const FREE_LIMITS = {
-  savedTips: 100,
-  myTips: 20,
+  savedTips: 50,
+  myTips: 10,
   customCategories: 5,
 } as const;
 
