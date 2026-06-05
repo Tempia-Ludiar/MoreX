@@ -16,7 +16,15 @@ import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
+import { BillingPlan } from '@/constants/billing';
 import { colors, radius, shadow, spacing } from '@/theme';
+import {
+  countCustomCategories,
+  getCurrentBillingPlan,
+  getUpgradeMessage,
+  isDefaultCategory,
+  isAtLimit,
+} from '@/lib/billing';
 import { getPendingTipDraft, savePendingTipDraft } from '@/lib/pendingTipDraft';
 import {
   LINK_PREVIEW_TYPES,
@@ -64,10 +72,13 @@ export default function AddScreen() {
   const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
   const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
   const [managedCategories, setManagedCategories] = useState<string[]>([]);
+  const [plan, setPlan] = useState<BillingPlan>('free');
 
   const load = useCallback(async () => {
     try {
-      setManagedCategories(await getUserCategories());
+      const [nextPlan, nextCategories] = await Promise.all([getCurrentBillingPlan(), getUserCategories()]);
+      setPlan(nextPlan);
+      setManagedCategories(nextCategories);
     } catch (error) {
       Alert.alert('カテゴリを読み込めませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
     }
@@ -189,6 +200,14 @@ export default function AddScreen() {
 
   const addCategoryCandidate = async () => {
     if (!trimmedCategory) return;
+    if (!isDefaultCategory(trimmedCategory) && isAtLimit(plan, 'customCategories', countCustomCategories(managedCategories))) {
+      const message = getUpgradeMessage('customCategories');
+      Alert.alert(message.title, message.body, [
+        { text: 'あとで', style: 'cancel' },
+        { text: 'Plusを見る', onPress: () => router.push('/plus') },
+      ]);
+      return;
+    }
     try {
       setManagedCategories(await addUserCategory(trimmedCategory));
     } catch (error) {

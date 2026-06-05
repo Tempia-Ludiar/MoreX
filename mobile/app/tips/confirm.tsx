@@ -2,8 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { getPriorityMeta } from '@/constants/priority';
+import {
+  getCurrentBillingPlan,
+  getUpgradeMessage,
+  isAtLimit,
+} from '@/lib/billing';
 import { clearPendingTipDraft, getPendingTipDraft } from '@/lib/pendingTipDraft';
-import { createTip } from '@/lib/tipsStorage';
+import { createTip, getTips } from '@/lib/tipsStorage';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { TipDraft } from '@/types/tip';
 
@@ -23,6 +28,16 @@ export default function ConfirmTipScreen() {
     if (!draft || saving) return;
     setSaving(true);
     try {
+      const [plan, tips] = await Promise.all([getCurrentBillingPlan(), getTips()]);
+      if (isAtLimit(plan, 'savedTips', tips.length)) {
+        const message = getUpgradeMessage('savedTips');
+        Alert.alert(message.title, message.body, [
+          { text: 'あとで', style: 'cancel' },
+          { text: 'Plusを見る', onPress: () => router.push('/plus') },
+        ]);
+        setSaving(false);
+        return;
+      }
       await createTip(draft);
       await clearPendingTipDraft();
       router.replace('/tips/saved');

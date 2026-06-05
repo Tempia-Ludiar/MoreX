@@ -16,6 +16,7 @@ import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { EmptyState } from '@/components/EmptyState';
 import { colors, radius, shadow, spacing } from '@/theme';
+import { countMyTips, getCurrentBillingPlan, getUpgradeMessage, isAtLimit } from '@/lib/billing';
 import { deleteTip, getTips, updateTip } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
 
@@ -298,6 +299,17 @@ export default function TodoScreen() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const ensureCanAddMyTips = useCallback(async () => {
+    const plan = await getCurrentBillingPlan();
+    if (!isAtLimit(plan, 'myTips', countMyTips(tips))) return true;
+    const message = getUpgradeMessage('myTips');
+    Alert.alert(message.title, message.body, [
+      { text: 'あとで', style: 'cancel' },
+      { text: 'Plusを見る', onPress: () => router.push('/plus') },
+    ]);
+    return false;
+  }, [tips]);
+
   const handleAction = useCallback(async (action: CardAction, tip: Tip) => {
     if (action === 'done') {
       await updateTip(tip.id, { status: 'done' });
@@ -307,6 +319,7 @@ export default function TodoScreen() {
       await updateTip(tip.id, { status: 'todo' });
       await load();
     } else if (action === 'mytips') {
+      if (!(await ensureCanAddMyTips())) return;
       await updateTip(tip.id, { isInMyTips: true });
       await load();
     } else if (action === 'removeMyTips') {
@@ -331,14 +344,15 @@ export default function TodoScreen() {
         },
       ]);
     }
-  }, [load]);
+  }, [ensureCanAddMyTips, load]);
 
   const handleCompletionMyTips = useCallback(async () => {
     if (!completionTip) return;
+    if (!(await ensureCanAddMyTips())) return;
     await updateTip(completionTip.id, { isInMyTips: true });
     setCompletionTip(null);
     await load();
-  }, [completionTip, load]);
+  }, [completionTip, ensureCanAddMyTips, load]);
 
   const handleCompletionDismiss = useCallback(() => {
     setCompletionTip(null);

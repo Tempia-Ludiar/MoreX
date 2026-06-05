@@ -18,6 +18,7 @@ import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
 import { clampPriority } from '@/constants/priority';
 import { colors, radius, shadow, spacing } from '@/theme';
+import { countMyTips, getCurrentBillingPlan, getUpgradeMessage, isAtLimit } from '@/lib/billing';
 import { deleteTip, getTipById, getTips, updateTip } from '@/lib/tipsStorage';
 import { getUserCategories } from '@/lib/userCategories';
 import { Tip } from '@/types/tip';
@@ -572,12 +573,21 @@ export default function TipDetailScreen() {
   const handleAddToMyTips = useCallback(async () => {
     if (!tip || tip.isInMyTips) return;
     try {
+      const plan = await getCurrentBillingPlan();
+      if (isAtLimit(plan, 'myTips', countMyTips(allTips))) {
+        const message = getUpgradeMessage('myTips');
+        Alert.alert(message.title, message.body, [
+          { text: 'あとで', style: 'cancel' },
+          { text: 'Plusを見る', onPress: () => router.push('/plus') },
+        ]);
+        return;
+      }
       const updated = await updateTip(tip.id, { isInMyTips: true });
       if (updated) setTip(updated);
     } catch (error) {
       Alert.alert('MyTipsに追加できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
     }
-  }, [tip]);
+  }, [allTips, tip]);
 
   const handleEditSave = useCallback(async (patch: Partial<Tip>) => {
     if (!tip) return;

@@ -4,17 +4,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { SupabaseAuthCard } from '@/components/SupabaseAuthCard';
+import { BillingPlan, PLUS_PRICE_JPY } from '@/constants/billing';
 import { colors, radius, shadow, spacing } from '@/theme';
-import { clearTips } from '@/lib/tipsStorage';
+import { clearTips, getTips } from '@/lib/tipsStorage';
+import {
+  countCustomCategories,
+  countMyTips,
+  formatUsage,
+  getCurrentBillingPlan,
+  getPlanLabel,
+} from '@/lib/billing';
 import { getUserCategories } from '@/lib/userCategories';
 
 const WAITLIST_KEY = 'morex.waitlist.email.v0';
 
 const plusFeatures = [
-  { icon: '⚡', label: 'MyTips無制限', desc: '実行済みTipsをすべて蓄積' },
-  { icon: '🔍', label: 'OCR検索', desc: 'スクショ内テキストを全文検索' },
-  { icon: '📤', label: 'Markdownエクスポート', desc: 'TipsをMDファイルで書き出し' },
-  { icon: '🧭', label: 'AI自動タグ付け', desc: '保存時にタグを自動提案' },
+  { icon: '📚', label: '保存Tips無制限', desc: '数を気にせず蓄積' },
+  { icon: '★', label: 'MyTips無制限', desc: '役立った学びをすべて保存' },
+  { icon: '🏷', label: 'カテゴリ無制限', desc: '自分用の分類を自由に作成' },
+  { icon: '🕰', label: '将来追加予定', desc: 'Collections・再浮上リマインド' },
 ];
 
 export default function SettingsScreen() {
@@ -23,6 +31,10 @@ export default function SettingsScreen() {
   const [email, setEmail] = useState('');
   const [registered, setRegistered] = useState(false);
   const [categoryCount, setCategoryCount] = useState(0);
+  const [plan, setPlan] = useState<BillingPlan>('free');
+  const [savedTipsCount, setSavedTipsCount] = useState(0);
+  const [myTipsCount, setMyTipsCount] = useState(0);
+  const [customCategoryCount, setCustomCategoryCount] = useState(0);
 
   useEffect(() => {
     AsyncStorage.getItem(WAITLIST_KEY).then((saved) => {
@@ -33,7 +45,17 @@ export default function SettingsScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => {
-    getUserCategories().then((items) => setCategoryCount(items.length));
+    Promise.all([getCurrentBillingPlan(), getTips(), getUserCategories()])
+      .then(([nextPlan, tips, categories]) => {
+        setPlan(nextPlan);
+        setSavedTipsCount(tips.length);
+        setMyTipsCount(countMyTips(tips));
+        setCategoryCount(categories.length);
+        setCustomCategoryCount(countCustomCategories(categories));
+      })
+      .catch(() => {
+        getUserCategories().then((items) => setCategoryCount(items.length));
+      });
   }, []));
 
   const registerWaitlist = async () => {
@@ -82,6 +104,28 @@ export default function SettingsScreen() {
           <Text style={styles.settingArrow}>›</Text>
         </View>
       </TouchableOpacity>
+
+      <View style={styles.planCard}>
+        <View style={styles.planHeader}>
+          <View>
+            <Text style={styles.planKicker}>現在のプラン</Text>
+            <Text style={styles.planTitle}>{getPlanLabel(plan)}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.planButton}
+            onPress={() => router.push('/plus')}
+            activeOpacity={0.82}
+          >
+            <Text style={styles.planButtonText}>Plusを見る</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.usageGrid}>
+          <UsageItem label="保存Tips" value={formatUsage(plan, 'savedTips', savedTipsCount)} />
+          <UsageItem label="MyTips" value={formatUsage(plan, 'myTips', myTipsCount)} />
+          <UsageItem label="カスタムカテゴリ" value={formatUsage(plan, 'customCategories', customCategoryCount)} />
+        </View>
+        <Text style={styles.planNote}>Plusは¥{PLUS_PRICE_JPY}/月で、保存・MyTips・カテゴリを無制限にできます。</Text>
+      </View>
 
       {/* Plus features — compact 2×2 grid */}
       <View style={styles.sectionHeader}>
@@ -197,6 +241,15 @@ export default function SettingsScreen() {
   );
 }
 
+function UsageItem({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.usageItem}>
+      <Text style={styles.usageLabel}>{label}</Text>
+      <Text style={styles.usageValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
   content: { gap: spacing.md, padding: spacing.lg, paddingBottom: 110 },
@@ -299,6 +352,38 @@ const styles = StyleSheet.create({
   settingMeta: { alignItems: 'center', flexDirection: 'row', gap: spacing.xs },
   settingCount: { color: colors.inkMuted, fontSize: 12, fontWeight: '700' },
   settingArrow: { color: colors.inkMuted, fontSize: 22, lineHeight: 24 },
+  planCard: {
+    backgroundColor: colors.bgElevated,
+    borderRadius: radius.lg,
+    gap: spacing.md,
+    padding: spacing.lg,
+    ...shadow.cardSoft,
+  },
+  planHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  planKicker: { color: colors.inkMuted, fontSize: 10, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase' },
+  planTitle: { color: colors.ink, fontSize: 22, fontWeight: '900', letterSpacing: -0.4, marginTop: 2 },
+  planButton: {
+    backgroundColor: colors.ink,
+    borderRadius: radius.pill,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  planButtonText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
+  usageGrid: { flexDirection: 'row', gap: spacing.sm },
+  usageItem: {
+    backgroundColor: colors.bg,
+    borderRadius: radius.md,
+    flex: 1,
+    gap: 3,
+    padding: spacing.sm,
+  },
+  usageLabel: { color: colors.inkMuted, fontSize: 10, fontWeight: '800' },
+  usageValue: { color: colors.ink, fontSize: 12, fontWeight: '900' },
+  planNote: { color: colors.inkSub, fontSize: 11.5, lineHeight: 17 },
 
   accordionRow: {
     alignItems: 'center',

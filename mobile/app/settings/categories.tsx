@@ -2,7 +2,16 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { ScreenHeader } from '@/components/ScreenHeader';
+import { BillingPlan } from '@/constants/billing';
 import { colors, radius, shadow, spacing } from '@/theme';
+import {
+  countCustomCategories,
+  formatUsage,
+  getCurrentBillingPlan,
+  getUpgradeMessage,
+  isDefaultCategory,
+  isAtLimit,
+} from '@/lib/billing';
 import {
   addUserCategory,
   deleteUserCategory,
@@ -17,14 +26,26 @@ export default function CategorySettingsScreen() {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [saving, setSaving] = useState(false);
+  const [plan, setPlan] = useState<BillingPlan>('free');
 
   useEffect(() => {
-    getUserCategories().then(setCategories);
+    Promise.all([getCurrentBillingPlan(), getUserCategories()]).then(([nextPlan, nextCategories]) => {
+      setPlan(nextPlan);
+      setCategories(nextCategories);
+    });
   }, []);
 
   const addCategory = async () => {
     const value = newCategory.trim();
     if (!value || saving) return;
+    if (!isDefaultCategory(value) && isAtLimit(plan, 'customCategories', countCustomCategories(categories))) {
+      const message = getUpgradeMessage('customCategories');
+      Alert.alert(message.title, message.body, [
+        { text: 'あとで', style: 'cancel' },
+        { text: 'Plusを見る', onPress: () => router.push('/plus') },
+      ]);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -108,6 +129,9 @@ export default function CategorySettingsScreen() {
         <Text style={styles.infoTitle}>ここで管理するもの</Text>
         <Text style={styles.infoText}>
           カテゴリの候補リストだけを変更します。既に保存済みのTipsのカテゴリ名は勝手に書き換えません。
+        </Text>
+        <Text style={styles.infoUsage}>
+          カスタムカテゴリ: {formatUsage(plan, 'customCategories', countCustomCategories(categories))}
         </Text>
       </View>
 
@@ -206,6 +230,7 @@ const styles = StyleSheet.create({
   },
   infoTitle: { color: colors.accentDeep, fontSize: 13, fontWeight: '800' },
   infoText: { color: colors.accentDeep, fontSize: 12, lineHeight: 18 },
+  infoUsage: { color: colors.accentDeep, fontSize: 11.5, fontWeight: '900', marginTop: 3 },
   addCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.lg,

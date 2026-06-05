@@ -140,13 +140,13 @@ function PlusBanner() {
         <Text style={{ fontSize: 18, color: '#ffd555' }}>✦</Text>
       </View>
       <View style={styles.plusTextBlock}>
-        <Text style={styles.plusTitle}>PlusでKnowledge Mapを拡張</Text>
-        <Text style={styles.plusDesc}>無制限のMyTips・Collections・AI自動タグ付け・再浮上リマインド</Text>
+        <Text style={styles.plusTitle}>Plusで制限なく蓄積</Text>
+        <Text style={styles.plusDesc}>保存Tips・MyTips・カスタムカテゴリを無制限に。¥680/月</Text>
       </View>
       <TouchableOpacity
         style={styles.plusCta}
         activeOpacity={0.85}
-        onPress={() => Alert.alert('MoreX Plus', 'Coming soon! 近日公開予定です。')}
+        onPress={() => router.push('/plus')}
       >
         <Text style={styles.plusCtaText}>詳しく</Text>
       </TouchableOpacity>
