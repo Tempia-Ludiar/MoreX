@@ -1,0 +1,24 @@
+{
+  "short_name": "MoreX",
+  "name": "MoreX",
+  "description": "XのTipsを保存し、整理し、実行に変えるアプリ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#6366f1",
+  "background_color": "#f7f7fb",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -4,6 +4,7 @@
     "slug": "morex",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "morex",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -15,7 +16,8 @@
       "bundler": "metro",
       "output": "static",
       "name": "MoreX",
-      "description": "XのTipsを保存し、整理し、実行に変えるアプリ"
+      "description": "XのTipsを保存し、整理し、実行に変えるアプリ",
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
