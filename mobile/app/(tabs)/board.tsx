@@ -193,37 +193,39 @@ function TodoCard({
 
   return (
     <View style={[styles.tc, { borderLeftColor: borderColor }, isDone && !tip.isInMyTips && styles.tcDoneCard]}>
-      <TouchableOpacity
-        activeOpacity={0.86}
-        style={styles.tcTop}
-        onPress={() => router.push(`/tips/${tip.id}`)}
-      >
-        <View style={styles.tcMain}>
-          <View style={styles.tcChipRow}>
-            <View style={styles.tcChipLeft}>
-              <View style={styles.srcChip}>
-                <Text style={styles.srcChipText}>{srcKey}</Text>
-              </View>
-              <View style={[styles.statusChip, { backgroundColor: sm.bg }]}>
-                <Text style={[styles.statusChipText, { color: sm.text }]}>{sm.label}</Text>
-              </View>
-              {tip.isInMyTips ? (
-                <View style={styles.myTipsBadge}>
-                  <Text style={styles.myTipsBadgeText}>★ MyTips</Text>
+      <View style={styles.tcTop}>
+        <TouchableOpacity
+          activeOpacity={0.86}
+          style={styles.tcOpenArea}
+          onPress={() => router.push(`/tips/${tip.id}`)}
+        >
+          <View style={styles.tcMain}>
+            <View style={styles.tcChipRow}>
+              <View style={styles.tcChipLeft}>
+                <View style={styles.srcChip}>
+                  <Text style={styles.srcChipText}>{srcKey}</Text>
                 </View>
-              ) : null}
+                <View style={[styles.statusChip, { backgroundColor: sm.bg }]}>
+                  <Text style={[styles.statusChipText, { color: sm.text }]}>{sm.label}</Text>
+                </View>
+                {tip.isInMyTips ? (
+                  <View style={styles.myTipsBadge}>
+                    <Text style={styles.myTipsBadgeText}>★ MyTips</Text>
+                  </View>
+                ) : null}
+              </View>
+              {dateHint ? <Text style={styles.dateHint}>{dateHint}</Text> : null}
             </View>
-            {dateHint ? <Text style={styles.dateHint}>{dateHint}</Text> : null}
-          </View>
-          <Text style={[styles.tcTitle, isDone && !tip.isInMyTips && styles.tcTitleDone]} numberOfLines={2}>
-            {tip.title || '無題のTips'}
-          </Text>
-          {(tip.memo || tip.content) ? (
-            <Text style={[styles.tcMemo, isDone && !tip.isInMyTips && styles.tcMemoDone]} numberOfLines={2}>
-              {tip.memo || tip.content}
+            <Text style={[styles.tcTitle, isDone && !tip.isInMyTips && styles.tcTitleDone]} numberOfLines={2}>
+              {tip.title || '無題のTips'}
             </Text>
-          ) : null}
-        </View>
+            {(tip.memo || tip.content) ? (
+              <Text style={[styles.tcMemo, isDone && !tip.isInMyTips && styles.tcMemoDone]} numberOfLines={2}>
+                {tip.memo || tip.content}
+              </Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
 
         <View style={styles.actionRail}>
           <TouchableOpacity
@@ -254,7 +256,7 @@ function TodoCard({
             </TouchableOpacity>
           ) : null}
         </View>
-      </TouchableOpacity>
+      </View>
 
       {isDone ? (
         <View style={styles.tcActs}>
@@ -317,8 +319,14 @@ export default function TodoScreen() {
           text: '削除する',
           style: 'destructive',
           onPress: async () => {
-            await deleteTip(tip.id);
-            await load();
+            setTips((prev) => prev.filter((item) => item.id !== tip.id));
+            try {
+              await deleteTip(tip.id);
+              await load();
+            } catch (error) {
+              await load();
+              Alert.alert('削除できませんでした', error instanceof Error ? error.message : '時間をおいてもう一度お試しください。');
+            }
           },
         },
       ]);
@@ -630,6 +638,7 @@ const styles = StyleSheet.create({
   },
   tcDoneCard: { opacity: 0.68 },
   tcTop: { alignItems: 'flex-start', flexDirection: 'row', gap: 10, padding: 12 },
+  tcOpenArea: { flex: 1, minWidth: 0 },
   tcMain: { flex: 1, minWidth: 0 },
   tcChipRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   tcChipLeft: { alignItems: 'center', flexDirection: 'row', gap: 6 },

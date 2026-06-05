@@ -248,7 +248,11 @@ export async function deleteTip(id: string): Promise<void> {
   const existing = await getTipById(id);
   const { error } = await supabase.from('tips').delete().eq('id', id);
   if (error) throw explainError(error);
-  await removeImage(existing?.imagePath);
+  try {
+    await removeImage(existing?.imagePath);
+  } catch (imageError) {
+    console.warn('Tip image cleanup failed after deleting the tip.', imageError);
+  }
 }
 
 export async function clearTips(): Promise<void> {
