@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -19,11 +19,19 @@ import { PrioritySlider } from '@/components/PrioritySlider';
 import { categories } from '@/constants/tips';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { getPendingTipDraft, savePendingTipDraft } from '@/lib/pendingTipDraft';
+import {
+  LINK_PREVIEW_TYPES,
+  detectLinkPreviewType,
+  fetchLinkPreview,
+  normalizeUrl,
+  type LinkPreview,
+  type LinkPreviewType,
+} from '@/lib/linkPreview';
 import { getTips } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
 
-const CONTENT_TYPES = ['X', 'YouTube', 'note', 'Web記事', 'AI回答'];
-type ContentType = (typeof CONTENT_TYPES)[number];
+const CONTENT_TYPES = LINK_PREVIEW_TYPES;
+type ContentType = LinkPreviewType;
 
 const PREVIEW_META: Record<ContentType, { label: string; colors: [string, string, string] }> = {
   X: { label: 'X', colors: ['#080808', '#1b1b1b', '#303030'] },
@@ -32,25 +40,6 @@ const PREVIEW_META: Record<ContentType, { label: string; colors: [string, string
   Web記事: { label: 'Web記事', colors: ['#110120', '#2d1660', '#183058'] },
   AI回答: { label: 'AI回答', colors: ['#15203b', '#3447a8', '#6366f1'] },
 };
-
-function detectContentType(sourceUrl: string): ContentType {
-  const rawUrl = sourceUrl.trim();
-  if (!rawUrl) return 'Web記事';
-  try {
-    const normalizedUrl = /^[a-z][a-z\d+\-.]*:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
-    const hostname = new URL(normalizedUrl).hostname.toLowerCase().replace(/^www\./, '');
-    if (hostname === 'x.com' || hostname.endsWith('.x.com') || hostname === 'twitter.com' || hostname.endsWith('.twitter.com')) {
-      return 'X';
-    }
-    if (hostname === 'youtube.com' || hostname.endsWith('.youtube.com') || hostname === 'youtu.be') {
-      return 'YouTube';
-    }
-    if (hostname === 'note.com' || hostname.endsWith('.note.com')) return 'note';
-  } catch {
-    return 'Web記事';
-  }
-  return 'Web記事';
-}
 
 const USE_CHIPS: { label: string; full: string }[] = [
   { label: 'あとで試す', full: 'あとで試す' },
@@ -74,7 +63,9 @@ export default function AddScreen() {
   const [showOptional, setShowOptional] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [priorityChanged, setPriorityChanged] = useState(false);
-  const [contentType, setContentType] = useState('');
+  const [contentType, setContentType] = useState<ContentType | ''>('');
+  const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
+  const [linkPreviewLoading, setLinkPreviewLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -101,8 +92,39 @@ export default function AddScreen() {
       ).slice(0, 18) as string[],
     [tips],
   );
-  const previewType = contentType || detectContentType(sourceUrl);
+  useEffect(() => {
+    const url = sourceUrl.trim();
+    let cancelled = false;
+
+    if (!url) {
+      setLinkPreview(null);
+      setLinkPreviewLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLinkPreviewLoading(true);
+    const timer = setTimeout(async () => {
+      const preview = await fetchLinkPreview(url);
+      if (!cancelled) {
+        setLinkPreview(preview);
+        setLinkPreviewLoading(false);
+      }
+    }, 550);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [sourceUrl]);
+
+  const previewType = contentType || linkPreview?.type || detectLinkPreviewType(sourceUrl);
   const previewMeta = PREVIEW_META[previewType];
+  const previewImage = linkPreview?.image;
+  const previewTitle = linkPreview?.title || linkPreview?.siteName || previewMeta.label;
+  const previewDescription = linkPreview?.description;
+  const previewUrl = linkPreview?.url || normalizeUrl(sourceUrl) || sourceUrl;
 
   const pickImage = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -126,6 +148,8 @@ export default function AddScreen() {
     setShowPriority(false);
     setPriorityChanged(false);
     setContentType('');
+    setLinkPreview(null);
+    setLinkPreviewLoading(false);
   };
 
   const proceedToConfirm = async () => {
@@ -251,26 +275,52 @@ export default function AddScreen() {
             <Text style={styles.secName}>プレビュー</Text>
           </View>
           <View style={[styles.card, styles.cardClip]}>
-            <LinearGradient
-              colors={previewMeta.colors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.prevBanner}
-            >
-              <View style={styles.prevSvc}>
-                <Text style={styles.prevSvcText}>{previewType}</Text>
+            {previewImage ? (
+              <View style={styles.prevImageWrap}>
+                <Image source={{ uri: previewImage }} style={styles.prevImage} resizeMode="cover" />
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.58)', 'rgba(0,0,0,0.06)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={styles.prevImageShade}
+                />
+                <View style={styles.prevSvc}>
+                  <Text style={styles.prevSvcText}>{previewType}</Text>
+                </View>
               </View>
-              <Text style={styles.prevFallbackText}>{previewMeta.label}</Text>
-              <Text style={styles.prevFallbackNote}>リンク先プレビュー</Text>
-            </LinearGradient>
+            ) : (
+              <LinearGradient
+                colors={previewMeta.colors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.prevBanner}
+              >
+                <View style={styles.prevSvc}>
+                  <Text style={styles.prevSvcText}>{previewType}</Text>
+                </View>
+                <Text style={styles.prevFallbackText}>{previewMeta.label}</Text>
+                <Text style={styles.prevFallbackNote}>
+                  {linkPreviewLoading ? 'プレビュー取得中...' : 'リンク先プレビュー'}
+                </Text>
+              </LinearGradient>
+            )}
             <View style={styles.prevBody}>
+              <Text style={styles.prevTitle} numberOfLines={2}>{previewTitle}</Text>
+              {previewDescription && (
+                <Text style={styles.prevDesc} numberOfLines={2}>{previewDescription}</Text>
+              )}
+              {!previewImage && !linkPreviewLoading && (
+                <Text style={styles.prevFallbackHelp}>
+                  画像が取得できない場合も、リンク種別は保存できます
+                </Text>
+              )}
               <View style={styles.prevFoot}>
-                <Text style={styles.prevUrlTiny} numberOfLines={1}>{sourceUrl}</Text>
+                <Text style={styles.prevUrlTiny} numberOfLines={1}>{previewUrl}</Text>
                 <TouchableOpacity
                   style={styles.openBtn}
                   activeOpacity={0.8}
                   onPress={() =>
-                    Linking.openURL(sourceUrl).catch(() =>
+                    Linking.openURL(previewUrl).catch(() =>
                       Alert.alert('URLを開けませんでした'),
                     )
                   }
@@ -533,6 +583,11 @@ const styles = StyleSheet.create({
 
   // Section 2: Preview
   prevBanner: { alignItems: 'center', height: 100, justifyContent: 'center' },
+  prevImageWrap: { height: 148, overflow: 'hidden', backgroundColor: colors.ink },
+  prevImage: { height: '100%', width: '100%' },
+  prevImageShade: {
+    ...StyleSheet.absoluteFillObject,
+  },
   prevSvc: {
     position: 'absolute',
     top: 9,
@@ -545,7 +600,10 @@ const styles = StyleSheet.create({
   prevSvcText: { fontSize: 10.5, fontWeight: '700', color: '#fff' },
   prevFallbackText: { color: '#ffffff', fontSize: 23, fontWeight: '800', letterSpacing: -0.4 },
   prevFallbackNote: { color: 'rgba(255,255,255,0.66)', fontSize: 10.5, fontWeight: '600', marginTop: 4 },
-  prevBody: { paddingVertical: 12, paddingHorizontal: 14 },
+  prevBody: { paddingVertical: 12, paddingHorizontal: 14, gap: 5 },
+  prevTitle: { color: colors.ink, fontSize: 13.5, fontWeight: '800', letterSpacing: -0.1 },
+  prevDesc: { color: colors.inkSub, fontSize: 11.5, lineHeight: 17 },
+  prevFallbackHelp: { color: colors.inkMuted, fontSize: 10.5, lineHeight: 15 },
   prevFoot: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prevUrlTiny: { fontSize: 10.5, color: colors.inkMuted, flex: 1 },
   openBtn: {
