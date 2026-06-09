@@ -97,6 +97,22 @@ export default function SettingsScreen() {
           <Text style={styles.settingArrow}>›</Text>
         </View>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.settingCard}
+        onPress={() => router.push('/privacy')}
+        activeOpacity={0.82}
+      >
+        <View style={styles.settingIcon}>
+          <Text style={styles.settingIconText}>🔒</Text>
+        </View>
+        <View style={styles.settingBody}>
+          <Text style={styles.settingTitle}>プライバシーポリシー</Text>
+          <Text style={styles.settingDesc}>保存データと外部サービスの扱いを確認</Text>
+        </View>
+        <View style={styles.settingMeta}>
+          <Text style={styles.settingArrow}>›</Text>
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.planCard}>
         <View style={styles.planHeader}>
@@ -109,7 +125,7 @@ export default function SettingsScreen() {
             onPress={() => router.push('/plus')}
             activeOpacity={0.82}
           >
-            <Text style={styles.planButtonText}>Plusを見る</Text>
+            <Text style={styles.planButtonText}>Plus準備中</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.usageGrid}>
@@ -117,7 +133,7 @@ export default function SettingsScreen() {
           <UsageItem label="MyTips" value={formatUsage(plan, 'myTips', myTipsCount)} />
           <UsageItem label="カスタムカテゴリ" value={formatUsage(plan, 'customCategories', customCategoryCount)} />
         </View>
-        <Text style={styles.planNote}>Plusは¥{PLUS_PRICE_JPY}/月で、保存・MyTips・カテゴリを無制限にできます。</Text>
+        <Text style={styles.planNote}>Plus公開後は¥{PLUS_PRICE_JPY}/月で、保存・MyTips・カテゴリを無制限にできます。</Text>
       </View>
 
       <View style={styles.sectionHeader}>

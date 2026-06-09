@@ -1,6 +1,6 @@
 # MoreX Mobile MVP v0
 
-MoreXは、Xなどで見つけたAI活用Tipsを、スクリーンショット・本文・URL・自分用メモで保存し、カレンダーで実行日を決め、メモを中心に保存して実行に移すためのiOSアプリMVPです。
+MoreXは、X・YouTube・note・Web記事・AI回答などで見つけたTipsを、URL・メモ・画像・カテゴリで保存し、Todoとして実行に移し、役立ったものをMyTipsに残すためのWeb/PWAアプリMVPです。
 
 ## 起動方法
 
@@ -60,17 +60,17 @@ npm run export:web
 ## 実装済み機能
 
 - Expo / React Native / TypeScript / Expo Router構成
-- Bottom Tab: Add / Library / Playbook / Settings
+- Bottom Tab: Add / Todo / MyTips / Settings
 - Supabaseによるユーザー別Tips永続化
 - 初回起動時のサンプルTips 3件投入
 - スクリーンショット画像選択
-- Add画面でのTips作成専用フォーム
+- Add画面でのTips作成専用フォーム、URLプレビュー、カテゴリ候補
 - priority 1〜100のスライダー入力
-- 詳細画面で編集、カテゴリ自由入力、カレンダー日付変更、実行済み化、削除
-- Library画面で優先度順ソート、カテゴリ/ステータス絞り込み、検索
-- Playbook画面で実行済みTipsを無料3件まで表示
+- 詳細画面で編集、カテゴリ自由入力、実行済み化、MyTips保存、削除
+- Todo画面で進捗表示、カテゴリ/ステータス絞り込み、検索
+- MyTips画面で残しておきたいTipsをカテゴリ別に整理
 - データ全削除
-- Plus機能 Coming Soon 表示
+- Plus機能 Coming Soon表示とFree上限表示
 - Supabase Authの新規登録 / ログイン / ログアウト
 - Supabase Authセッション保持
 
@@ -96,11 +96,11 @@ npm run export:web
 
 ## App Store公開に向けたTODO
 
-- アイコン作成
-- App Storeスクリーンショット作成
 - プライバシーポリシー作成
+- App Storeスクリーンショット作成
 - TestFlight実機確認
 - EAS Build / Submit設定
+- Web公開前のリンクプレビューAPI安全性確認
 
 
 

@@ -1,3 +1,6 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
 const USER_AGENT =
   'Mozilla/5.0 (compatible; MoreXLinkPreview/1.0; +https://morex.app)';
 
@@ -23,6 +26,61 @@ function normalizeUrl(input: string): string | null {
     return url.href;
   } catch {
     return null;
+  }
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  const [a, b] = parts;
+  return (
+    a === 10 ||
+    a === 127 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 169 && b === 254) ||
+    a === 0
+  );
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return (
+    normalized === '::1' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:')
+  );
+}
+
+async function assertPublicUrl(urlString: string): Promise<void> {
+  const url = new URL(urlString);
+  const hostname = url.hostname.toLowerCase();
+
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname === 'metadata.google.internal'
+  ) {
+    throw new Error('Blocked private hostname');
+  }
+
+  const ipVersion = isIP(hostname);
+  if (ipVersion === 4 && isPrivateIpv4(hostname)) throw new Error('Blocked private IPv4 address');
+  if (ipVersion === 6 && isPrivateIpv6(hostname)) throw new Error('Blocked private IPv6 address');
+
+  if (ipVersion === 0) {
+    const results = await lookup(hostname, { all: true, verbatim: true });
+    if (results.some((result) => (
+      result.family === 4
+        ? isPrivateIpv4(result.address)
+        : isPrivateIpv6(result.address)
+    ))) {
+      throw new Error('Blocked private DNS result');
+    }
   }
 }
 
@@ -118,7 +176,8 @@ function resolveImage(image: string | undefined, pageUrl: string): string | unde
   }
 }
 
-async function fetchHtml(url: string): Promise<string> {
+async function fetchHtml(url: string, redirectCount = 0): Promise<string> {
+  await assertPublicUrl(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7000);
 
@@ -128,8 +187,16 @@ async function fetchHtml(url: string): Promise<string> {
         Accept: 'text/html,application/xhtml+xml',
         'User-Agent': USER_AGENT,
       },
+      redirect: 'manual',
       signal: controller.signal,
     });
+
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const nextUrl = response.headers.get('location');
+      if (!nextUrl || redirectCount >= 3) throw new Error('Unsupported redirect');
+      return fetchHtml(new URL(nextUrl, url).href, redirectCount + 1);
+    }
+
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.text();
   } finally {

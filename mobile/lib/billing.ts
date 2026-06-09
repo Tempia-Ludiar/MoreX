@@ -56,17 +56,17 @@ export function getUpgradeMessage(kind: LimitKind) {
   if (kind === 'savedTips') {
     return {
       title: '保存TipsのFree上限に達しました',
-      body: 'Plusにすると、保存Tipsを無制限に蓄積できます。',
+      body: 'Plus公開後は無制限にできます。現在は準備中のため、不要なTipsを削除して空きを作ってください。',
     };
   }
   if (kind === 'myTips') {
     return {
       title: 'MyTipsのFree上限に達しました',
-      body: 'Plusにすると、役に立ったTipsを無制限に残せます。',
+      body: 'Plus公開後は無制限に残せます。現在は準備中のため、残したいTipsを入れ替えて使ってください。',
     };
   }
   return {
     title: 'カスタムカテゴリのFree上限に達しました',
-    body: 'Plusにすると、カテゴリ候補を無制限に作れます。',
+    body: 'Plus公開後は無制限に作れます。現在は準備中のため、既存カテゴリを編集・削除して調整してください。',
   };
 }
