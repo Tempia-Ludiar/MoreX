@@ -53,6 +53,24 @@ export const typography = {
   label: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3 },
 };
 
+export const gradients = {
+  /** 画面上部に敷く淡いアクセントの色帯（白一面の印象を和らげる） */
+  screenTint: ['rgba(99,102,241,0.10)', 'rgba(99,102,241,0.0)'] as const,
+  /** 達成・成長を感じさせる淡いグリーンの色帯（MyTips用） */
+  growthTint: ['rgba(16,185,129,0.08)', 'rgba(99,102,241,0.0)'] as const,
+};
+
+export const motion = {
+  /** PressableScaleの標準沈み込み量 */
+  pressScale: 0.97,
+  /** FadeSlideInの標準duration（ms） */
+  enterDuration: 360,
+  /** リスト段差表示の1段あたりの遅延（ms） */
+  staggerStep: 50,
+  /** 段差表示の最大段数（これ以上は同時に出す） */
+  staggerMax: 6,
+};
+
 export const shadow = {
   card: {
     shadowColor: '#14142a',
