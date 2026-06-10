@@ -1,10 +1,13 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
+  TextStyle,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -13,8 +16,12 @@ import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { AchievementSummary } from '@/components/AchievementSummary';
 import { CategoryBarChart } from '@/components/CategoryBarChart';
+import { FadeSlideIn } from '@/components/FadeSlideIn';
 import { KnowledgeMap, KnowledgeCategory, hashColor } from '@/components/KnowledgeMap';
-import { colors, radius, shadow, spacing } from '@/theme';
+import { PressableScale } from '@/components/PressableScale';
+import { StarPop } from '@/components/StarPop';
+import { useReducedMotion } from '@/lib/motion';
+import { colors, gradients, motion, radius, shadow, spacing } from '@/theme';
 import { getTips } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
 
@@ -66,6 +73,52 @@ const COLLECTIONS: Array<{
   { id: 'dev',  icon: '💻', name: '開発',     locked: true,  categories: null },
 ];
 
+// ── Count-up number ──────────────────────────────────────────
+function CountUpNumber({ value, style }: { value: number; style?: StyleProp<TextStyle> }) {
+  const reduced = useReducedMotion();
+  const [display, setDisplay] = useState(0);
+  const animRef = useRef(new Animated.Value(0));
+
+  useEffect(() => {
+    if (reduced) {
+      setDisplay(value);
+      return;
+    }
+    const anim = animRef.current;
+    const id = anim.addListener(({ value: v }) => setDisplay(Math.round(v)));
+    const animation = Animated.timing(anim, { toValue: value, duration: 700, useNativeDriver: false });
+    animation.start();
+    return () => {
+      animation.stop();
+      anim.removeListener(id);
+    };
+  }, [value, reduced]);
+
+  return <Text style={style}>{display}</Text>;
+}
+
+// ── Swaying sprout (empty state) ─────────────────────────────
+function SproutSway() {
+  const reduced = useReducedMotion();
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reduced) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 1600, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 1600, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduced]);
+
+  const rotate = anim.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] });
+  return <Animated.Text style={[styles.emptyIcon, { transform: [{ rotate }] }]}>🌱</Animated.Text>;
+}
+
 // ── MyTips Card ──────────────────────────────────────────────
 function MyTipsCard({ tip }: { tip: Tip }) {
   const srcKey = getSourceKey(tip.category);
@@ -75,7 +128,11 @@ function MyTipsCard({ tip }: { tip: Tip }) {
   const reuse = tip.content || '';
 
   return (
-    <View style={styles.tipCard}>
+    <PressableScale
+      containerStyle={styles.tipCardWrap}
+      style={styles.tipCard}
+      onPress={() => router.push(`/tips/${tip.id}`)}
+    >
       <LinearGradient
         colors={barColors}
         start={{ x: 0, y: 0 }}
@@ -92,9 +149,7 @@ function MyTipsCard({ tip }: { tip: Tip }) {
             onPress={() => router.push(`/tips/${tip.id}`)}
             activeOpacity={0.7}
           >
-            <Text style={tip.isInMyTips ? styles.tipStarFilled : styles.tipStarEmpty}>
-              {tip.isInMyTips ? '★' : '☆'}
-            </Text>
+            <StarPop active={tip.isInMyTips === true} size={17} inactiveColor={colors.inkMuted} />
           </TouchableOpacity>
         </View>
 
@@ -123,7 +178,7 @@ function MyTipsCard({ tip }: { tip: Tip }) {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </PressableScale>
   );
 }
 
@@ -250,25 +305,24 @@ export default function MyTipsScreen() {
   if (myTips.length === 0) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <LinearGradient colors={gradients.growthTint} style={styles.bgTint} pointerEvents="none" />
         <View style={styles.header}>
           <Text style={styles.headerTitle}>MyTips</Text>
           <Text style={styles.headerSub}>あなたの型 — 0件蓄積</Text>
           <Text style={styles.headerHint}>実行してよかったTipsだけを残す知識資産です。</Text>
         </View>
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyIcon}>🌱</Text>
-          <Text style={styles.emptyTitle}>まだMyTipsがありません</Text>
-          <Text style={styles.emptyBody}>
-            Todoで実行したTipsの中から、役に立ったものをMyTipsに残しましょう。
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyBtn}
-            onPress={() => router.push('/(tabs)/board')}
-            activeOpacity={0.82}
-          >
-            <Text style={styles.emptyBtnText}>Todoを見る →</Text>
-          </TouchableOpacity>
-        </View>
+        <FadeSlideIn>
+          <View style={styles.emptyCard}>
+            <SproutSway />
+            <Text style={styles.emptyTitle}>まだMyTipsがありません</Text>
+            <Text style={styles.emptyBody}>
+              Todoで実行したTipsの中から、役に立ったものをMyTipsに残しましょう。
+            </Text>
+            <PressableScale style={styles.emptyBtn} onPress={() => router.push('/(tabs)/board')}>
+              <Text style={styles.emptyBtnText}>Todoを見る →</Text>
+            </PressableScale>
+          </View>
+        </FadeSlideIn>
         <PlusBanner />
       </ScrollView>
     );
@@ -278,12 +332,17 @@ export default function MyTipsScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
 
+      {/* 上部の淡い色帯（知識が育つイメージのグリーン系） */}
+      <LinearGradient colors={gradients.growthTint} style={styles.bgTint} pointerEvents="none" />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.headerTitle}>MyTips</Text>
-            <Text style={styles.headerSub}>あなたの型 — {myTips.length}件蓄積</Text>
+            <Text style={styles.headerSub}>
+              あなたの型 — <CountUpNumber value={myTips.length} style={styles.headerCount} />件蓄積
+            </Text>
             <Text style={styles.headerHint}>実行してよかったTipsだけを残す知識資産です。</Text>
           </View>
           <View style={styles.headerActions}>
@@ -311,15 +370,17 @@ export default function MyTipsScreen() {
         </View>
       </View>
 
-      <View style={styles.roleCard}>
-        <View style={styles.roleIcon}>
-          <Text style={styles.roleIconText}>★</Text>
+      <FadeSlideIn>
+        <View style={styles.roleCard}>
+          <View style={styles.roleIcon}>
+            <Text style={styles.roleIconText}>★</Text>
+          </View>
+          <View style={styles.roleBody}>
+            <Text style={styles.roleTitle}>MyTipsは「残す価値があった学び」の棚</Text>
+            <Text style={styles.roleText}>実行済みの中から、また使いたいTipsだけを残して育てます。</Text>
+          </View>
         </View>
-        <View style={styles.roleBody}>
-          <Text style={styles.roleTitle}>MyTipsは「残す価値があった学び」の棚</Text>
-          <Text style={styles.roleText}>実行済みの中から、また使いたいTipsだけを残して育てます。</Text>
-        </View>
-      </View>
+      </FadeSlideIn>
 
       {/* Search */}
       {showSearch ? (
@@ -341,18 +402,22 @@ export default function MyTipsScreen() {
       ) : null}
 
       {/* Stats */}
-      <AchievementSummary total={myTips.length} week={weekCount} streak={streakDays} />
+      <FadeSlideIn delay={80}>
+        <AchievementSummary total={myTips.length} week={weekCount} streak={streakDays} />
+      </FadeSlideIn>
 
       {/* Knowledge Map */}
-      <KnowledgeMap
-        categories={knowledgeCategories}
-        totalCount={myTips.length}
-        weekCount={weekCount}
-        showPlusButton
-        onCategoryPress={(name) =>
-          setSelectedCategory((prev) => (prev === name ? null : name))
-        }
-      />
+      <FadeSlideIn delay={160}>
+        <KnowledgeMap
+          categories={knowledgeCategories}
+          totalCount={myTips.length}
+          weekCount={weekCount}
+          showPlusButton
+          onCategoryPress={(name) =>
+            setSelectedCategory((prev) => (prev === name ? null : name))
+          }
+        />
+      </FadeSlideIn>
 
       {/* Collections */}
       <View style={styles.sec}>
@@ -399,7 +464,9 @@ export default function MyTipsScreen() {
       </View>
 
       {/* Category Growth */}
-      <CategoryBarChart categories={knowledgeCategories} title="カテゴリ別蓄積" subtitle="MyTipsに残した知識" />
+      <FadeSlideIn delay={240}>
+        <CategoryBarChart categories={knowledgeCategories} title="カテゴリ別蓄積" subtitle="MyTipsに残した知識" />
+      </FadeSlideIn>
 
       {/* Category filter chip */}
       {selectedCategory ? (
@@ -427,7 +494,11 @@ export default function MyTipsScreen() {
             <Text style={styles.emptySmallText}>該当するTipsがありません</Text>
           </View>
         ) : (
-          filteredTips.map((tip) => <MyTipsCard key={tip.id} tip={tip} />)
+          filteredTips.map((tip, i) => (
+            <FadeSlideIn key={tip.id} delay={Math.min(i, motion.staggerMax) * motion.staggerStep}>
+              <MyTipsCard tip={tip} />
+            </FadeSlideIn>
+          ))
         )}
       </View>
 
@@ -441,12 +512,14 @@ export default function MyTipsScreen() {
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
   content: { gap: spacing.md, paddingBottom: 110 },
+  bgTint: { height: 280, left: 0, position: 'absolute', right: 0, top: 0 },
 
   // Header
   header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.xs },
   headerRow: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
   headerTitle: { color: colors.ink, fontSize: 30, fontWeight: '700', letterSpacing: -0.6, marginBottom: 3 },
   headerSub: { color: colors.inkMuted, fontSize: 12 },
+  headerCount: { color: colors.ink, fontSize: 13, fontWeight: '800' },
   headerHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16, marginTop: 5 },
   roleCard: {
     alignItems: 'center',
@@ -562,10 +635,10 @@ const styles = StyleSheet.create({
   listSort: { color: colors.accent, fontSize: 11.5, fontWeight: '600' },
 
   // MyTips cards
+  tipCardWrap: { marginHorizontal: spacing.md },
   tipCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radius.lg,
-    marginHorizontal: spacing.md,
     overflow: 'hidden',
     ...shadow.card,
   },
@@ -575,8 +648,6 @@ const styles = StyleSheet.create({
   srcChip: { borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 },
   srcChipText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.1 },
   tipStar: { padding: 2 },
-  tipStarFilled: { color: '#ffcc00', fontSize: 17 },
-  tipStarEmpty: { color: colors.inkMuted, fontSize: 17 },
   tipTitle: { color: colors.ink, fontSize: 14, fontWeight: '700', letterSpacing: -0.2, lineHeight: 20 },
   metaSection: { gap: 3 },
   metaLabel: { color: colors.accent, fontSize: 10.5, fontWeight: '700' },

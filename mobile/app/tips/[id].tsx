@@ -14,8 +14,10 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
+import { PressableScale } from '@/components/PressableScale';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
+import { StarPop } from '@/components/StarPop';
 import { clampPriority } from '@/constants/priority';
 import { colors, radius, shadow, spacing } from '@/theme';
 import { countMyTips, getCurrentBillingPlan, getUpgradeMessage, isAtLimit } from '@/lib/billing';
@@ -175,7 +177,7 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAddToMyTips, onAfterMemoSave 
       {/* ── Actions ── */}
       <View style={styles.actionSection}>
         {!isTrash ? (
-          <TouchableOpacity onPress={onToggleStatus} activeOpacity={0.82} style={styles.actionBtnWrapper}>
+          <PressableScale onPress={onToggleStatus} style={styles.actionBtnWrapper}>
             <LinearGradient
               colors={isDone ? ['#059669', '#10b981'] : ['#1a1a3c', '#4f46e5']}
               start={{ x: 0, y: 0 }}
@@ -186,7 +188,7 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAddToMyTips, onAfterMemoSave 
                 {isDone ? '✓  実行済み  —  タップで未実行に戻す' : '▶  実行済みにする'}
               </Text>
             </LinearGradient>
-          </TouchableOpacity>
+          </PressableScale>
         ) : (
           <View style={styles.trashNotice}>
             <Text style={styles.trashNoticeText}>🗑  不要としてマーク済み</Text>
@@ -194,16 +196,21 @@ function ViewMode({ tip, onEdit, onToggleStatus, onAddToMyTips, onAfterMemoSave 
         )}
 
         {isDone && !isTrash ? (
-          <TouchableOpacity
-            style={[styles.actionMyTips, tip.isInMyTips && styles.actionMyTipsAdded]}
+          <PressableScale
+            style={[styles.actionMyTips, styles.actionMyTipsRow, tip.isInMyTips && styles.actionMyTipsAdded]}
             onPress={addToMyTips}
-            activeOpacity={tip.isInMyTips ? 1 : 0.82}
             disabled={tip.isInMyTips || myTipsSaving}
           >
+            <StarPop
+              active={tip.isInMyTips === true}
+              size={14}
+              activeColor="#7c3aed"
+              inactiveColor={colors.accentDeep}
+            />
             <Text style={[styles.actionMyTipsText, tip.isInMyTips && styles.actionMyTipsTextAdded]}>
-              {tip.isInMyTips ? '★  MyTips 追加済み' : myTipsSaving ? '追加中...' : '★  MyTipsに追加する'}
+              {tip.isInMyTips ? ' MyTips 追加済み' : myTipsSaving ? ' 追加中...' : ' MyTipsに追加する'}
             </Text>
-          </TouchableOpacity>
+          </PressableScale>
         ) : null}
       </View>
 
@@ -736,6 +743,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingVertical: 14,
   },
+  actionMyTipsRow: { flexDirection: 'row', justifyContent: 'center' },
   actionMyTipsAdded: { backgroundColor: '#f3e8ff' },
   actionMyTipsText: { color: colors.accentDeep, fontSize: 14, fontWeight: '700' },
   actionMyTipsTextAdded: { color: '#7c3aed' },

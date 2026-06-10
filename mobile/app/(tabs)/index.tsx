@@ -14,11 +14,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
+import { PressableScale } from '@/components/PressableScale';
 import { PriorityBucketToggle } from '@/components/PriorityBucketToggle';
 import { PrioritySlider } from '@/components/PrioritySlider';
 import { BillingPlan } from '@/constants/billing';
 import { getCategorySuggestions } from '@/constants/categorySuggestions';
-import { colors, radius, shadow, spacing } from '@/theme';
+import { colors, gradients, radius, shadow, spacing } from '@/theme';
 import {
   countCustomCategories,
   getCurrentBillingPlan,
@@ -226,6 +227,9 @@ export default function AddScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {/* 上部の淡い色帯（白一面の印象を和らげる装飾） */}
+      <LinearGradient colors={gradients.screenTint} style={styles.bgTint} pointerEvents="none" />
+
       {/* ── Header ── */}
       <View style={styles.pageHdRow}>
         <Text style={styles.pageTitle}>Add</Text>
@@ -392,14 +396,14 @@ export default function AddScreen() {
           />
           <View style={styles.qChipsRow}>
             {USE_CHIPS.map(({ label, full }) => (
-              <TouchableOpacity
+              <PressableScale
                 key={label}
                 style={styles.qChip}
+                pressedScale={0.93}
                 onPress={() => pickUse(full)}
-                activeOpacity={0.75}
               >
                 <Text style={styles.qChipText}>{label}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
           </View>
@@ -527,14 +531,13 @@ export default function AddScreen() {
 
       {/* ── 保存ボタン ── */}
       <View style={styles.saveArea}>
-        <TouchableOpacity
+        <PressableScale
           onPress={proceedToConfirm}
           disabled={saving}
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-          activeOpacity={0.82}
         >
           <Text style={styles.saveBtnText}>{saving ? '準備中...' : '確認画面へ進む'}</Text>
-        </TouchableOpacity>
+        </PressableScale>
         <Text style={styles.saveNote}>次の画面で内容を確認してから保存します</Text>
       </View>
 
@@ -545,6 +548,7 @@ export default function AddScreen() {
 const styles = StyleSheet.create({
   screen: { backgroundColor: '#f2f2f7', flex: 1 },
   content: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 110 },
+  bgTint: { height: 240, left: -16, position: 'absolute', right: -16, top: 0 },
 
   // Header
   pageHdRow: {

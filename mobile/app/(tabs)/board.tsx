@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -14,8 +14,13 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { CheckBurst, CheckBurstHandle } from '@/components/CheckBurst';
 import { EmptyState } from '@/components/EmptyState';
-import { colors, radius, shadow, spacing } from '@/theme';
+import { FadeSlideIn } from '@/components/FadeSlideIn';
+import { PressableScale } from '@/components/PressableScale';
+import { StarPop } from '@/components/StarPop';
+import { useReducedMotion } from '@/lib/motion';
+import { colors, gradients, motion, radius, shadow, spacing } from '@/theme';
 import { countMyTips, getCurrentBillingPlan, getUpgradeMessage, isAtLimit } from '@/lib/billing';
 import { deleteTip, getTips, updateTip } from '@/lib/tipsStorage';
 import { Tip } from '@/types/tip';
@@ -64,6 +69,25 @@ function ProgressBoard({
 }) {
   const doneRatio = counts.all > 0 ? counts.done / counts.all : 0;
   const allDone = counts.todo === 0 && counts.all > 0;
+  const fillAnim = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (reduced) {
+      fillAnim.setValue(doneRatio);
+      return;
+    }
+    const animation = Animated.timing(fillAnim, {
+      toValue: doneRatio,
+      duration: 600,
+      useNativeDriver: false, // widthアニメのため
+    });
+    animation.start();
+    return () => animation.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doneRatio, reduced]);
+
+  const fillWidth = fillAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
   const filterCards: Array<{
     key: StatusFilter;
@@ -116,7 +140,7 @@ function ProgressBoard({
           <Text style={styles.pbEyebrow}>今日の進捗</Text>
         </View>
         <Text style={styles.pbTitle}>
-          {allDone ? '今日もよくやりました！' : '未実行をひとつ減らそう'}
+          {allDone ? '🎉 今日もよくやりました！' : '未実行をひとつ減らそう'}
         </Text>
         <Text style={styles.pbSub}>
           {counts.done > 0
@@ -126,7 +150,7 @@ function ProgressBoard({
             : `${counts.todo}件の未実行Tipsがあります`}
         </Text>
         <View style={styles.pbTrack}>
-          <View style={[styles.pbFill, { width: `${Math.round(doneRatio * 100)}%` as any }]} />
+          <Animated.View style={[styles.pbFill, { width: fillWidth }]} />
         </View>
       </View>
 
@@ -168,17 +192,21 @@ function TodoCard({
   tip: Tip;
   onAction: (action: CardAction) => void;
 }) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const checkRef = useRef<CheckBurstHandle>(null);
   const srcKey = getSourceKey(tip.category);
   const sm = STATUS_DISPLAY[tip.status] ?? STATUS_DISPLAY.todo;
   const dateHint = formatDateHint(tip.scheduledDate);
   const isDone = tip.status === 'done';
 
+  // MyTipsに残した瞬間（false→true）だけ★をポップさせる
+  const wasInMyTips = useRef(tip.isInMyTips);
+  const justSavedToMyTips = Boolean(tip.isInMyTips && !wasInMyTips.current);
+  useEffect(() => {
+    wasInMyTips.current = tip.isInMyTips;
+  });
+
   const handleCheck = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.8, duration: 70, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 200, useNativeDriver: true }),
-    ]).start();
+    if (!isDone) checkRef.current?.burst();
     Vibration.vibrate(8);
     onAction(isDone ? 'todo' : 'done');
   };
@@ -195,9 +223,9 @@ function TodoCard({
   return (
     <View style={[styles.tc, { borderLeftColor: borderColor }, isDone && !tip.isInMyTips && styles.tcDoneCard]}>
       <View style={styles.tcTop}>
-        <TouchableOpacity
-          activeOpacity={0.86}
-          style={styles.tcOpenArea}
+        <PressableScale
+          containerStyle={styles.tcOpenArea}
+          style={styles.tcOpenInner}
           onPress={() => router.push(`/tips/${tip.id}`)}
         >
           <View style={styles.tcMain}>
@@ -226,7 +254,7 @@ function TodoCard({
               </Text>
             ) : null}
           </View>
-        </TouchableOpacity>
+        </PressableScale>
 
         <View style={styles.actionRail}>
           <TouchableOpacity
@@ -235,11 +263,7 @@ function TodoCard({
             style={styles.completeButton}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Animated.View
-              style={[styles.cbCircle, isDone && styles.cbDone, { transform: [{ scale: scaleAnim }] }]}
-            >
-              {isDone && <Text style={styles.cbCheck}>✓</Text>}
-            </Animated.View>
+            <CheckBurst ref={checkRef} done={isDone} size={26} />
             <Text style={[styles.completeLabel, isDone && styles.completeLabelDone]}>
               {isDone ? '完了' : '完了にする'}
             </Text>
@@ -264,17 +288,18 @@ function TodoCard({
           {tip.isInMyTips ? (
             <>
               <View style={[styles.act, styles.actSaved]}>
-                <Text style={styles.actSavedText}>★ MyTips保存済み</Text>
+                <StarPop active popOnMount={justSavedToMyTips} size={12} activeColor="#7c3aed" />
+                <Text style={styles.actSavedText}> MyTips保存済み</Text>
               </View>
               <View style={{ flex: 1 }} />
-              <TouchableOpacity style={[styles.act, styles.actRemove]} onPress={() => onAction('removeMyTips')} activeOpacity={0.8}>
+              <PressableScale style={[styles.act, styles.actRemove]} onPress={() => onAction('removeMyTips')}>
                 <Text style={styles.actRemoveText}>外す</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </>
           ) : (
-            <TouchableOpacity style={[styles.act, styles.actMytips]} onPress={() => onAction('mytips')} activeOpacity={0.8}>
+            <PressableScale style={[styles.act, styles.actMytips]} onPress={() => onAction('mytips')}>
               <Text style={styles.actMytipsText}>★ MyTipsに残す</Text>
-            </TouchableOpacity>
+            </PressableScale>
           )}
         </View>
       ) : null}
@@ -395,6 +420,9 @@ export default function TodoScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {/* 上部の淡い色帯（スクロールと一緒に流れる装飾） */}
+      <LinearGradient colors={gradients.screenTint} style={styles.bgTint} pointerEvents="none" />
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Todo</Text>
@@ -461,8 +489,10 @@ export default function TodoScreen() {
                 <Text style={[styles.bucketLabel, { color: colors.orange }]}>優先度：高</Text>
                 <Text style={styles.bucketCount}>{highTips.length}件</Text>
               </View>
-              {highTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+              {highTips.map((tip, i) => (
+                <FadeSlideIn key={tip.id} delay={Math.min(i, motion.staggerMax) * motion.staggerStep}>
+                  <TodoCard tip={tip} onAction={(a) => handleAction(a, tip)} />
+                </FadeSlideIn>
               ))}
             </View>
           )}
@@ -474,8 +504,10 @@ export default function TodoScreen() {
                 <Text style={[styles.bucketLabel, { color: colors.yellow }]}>優先度：中</Text>
                 <Text style={styles.bucketCount}>{mediumTips.length}件</Text>
               </View>
-              {mediumTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+              {mediumTips.map((tip, i) => (
+                <FadeSlideIn key={tip.id} delay={Math.min(i, motion.staggerMax) * motion.staggerStep}>
+                  <TodoCard tip={tip} onAction={(a) => handleAction(a, tip)} />
+                </FadeSlideIn>
               ))}
             </View>
           )}
@@ -487,8 +519,10 @@ export default function TodoScreen() {
                 <Text style={[styles.bucketLabel, { color: '#3a84d0' }]}>優先度：低</Text>
                 <Text style={styles.bucketCount}>{lowTips.length}件</Text>
               </View>
-              {lowTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+              {lowTips.map((tip, i) => (
+                <FadeSlideIn key={tip.id} delay={Math.min(i, motion.staggerMax) * motion.staggerStep}>
+                  <TodoCard tip={tip} onAction={(a) => handleAction(a, tip)} />
+                </FadeSlideIn>
               ))}
             </View>
           )}
@@ -500,8 +534,10 @@ export default function TodoScreen() {
                 <Text style={[styles.bucketLabel, { color: colors.green }]}>実行済み</Text>
                 <Text style={styles.bucketCount}>{doneTips.length}件</Text>
               </View>
-              {doneTips.map((tip) => (
-                <TodoCard key={tip.id} tip={tip} onAction={(a) => handleAction(a, tip)} />
+              {doneTips.map((tip, i) => (
+                <FadeSlideIn key={tip.id} delay={Math.min(i, motion.staggerMax) * motion.staggerStep}>
+                  <TodoCard tip={tip} onAction={(a) => handleAction(a, tip)} />
+                </FadeSlideIn>
               ))}
             </View>
           )}
@@ -513,7 +549,7 @@ export default function TodoScreen() {
     {completionTip ? (
       <Modal
         transparent
-        animationType="fade"
+        animationType="slide"
         visible
         onRequestClose={handleCompletionDismiss}
       >
@@ -524,20 +560,23 @@ export default function TodoScreen() {
         >
           <View style={styles.bsSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.bsHandle} />
-            <Text style={styles.bsTitle}>実行完了！</Text>
+            <View style={styles.bsTitleRow}>
+              <CheckBurst done burstOnMount size={32} />
+              <Text style={styles.bsTitle}>実行完了！</Text>
+            </View>
             <Text style={styles.bsTipTitle} numberOfLines={1}>
               {completionTip.title || '無題のTips'}
             </Text>
             <Text style={styles.bsBody}>
               このTipsをMyTipsに残しますか？{'\n'}
-              本当に役立ったTipsだけをMyTipsに残すと、あとで再利用しやすくなります。
+              MyTipsは「実行してよかったTips」だけを集めた、あなた専用の知識棚です。
             </Text>
-            <TouchableOpacity style={styles.bsPrimary} onPress={handleCompletionMyTips} activeOpacity={0.85}>
+            <PressableScale style={styles.bsPrimary} onPress={handleCompletionMyTips}>
               <Text style={styles.bsPrimaryText}>★ MyTipsに残す</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.bsSecondary} onPress={handleCompletionDismiss} activeOpacity={0.75}>
+            </PressableScale>
+            <PressableScale style={styles.bsSecondary} onPress={handleCompletionDismiss}>
               <Text style={styles.bsSecondaryText}>完了だけにする</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -549,6 +588,7 @@ export default function TodoScreen() {
 const styles = StyleSheet.create({
   screen: { backgroundColor: colors.bg, flex: 1 },
   content: { gap: spacing.md, paddingBottom: 110 },
+  bgTint: { height: 260, left: 0, position: 'absolute', right: 0, top: 0 },
 
   // Header
   header: { paddingHorizontal: spacing.xl, paddingTop: 60, paddingBottom: spacing.xs },
@@ -653,6 +693,7 @@ const styles = StyleSheet.create({
   tcDoneCard: { opacity: 0.68 },
   tcTop: { alignItems: 'stretch', flexDirection: 'row', gap: 10, padding: 12 },
   tcOpenArea: { flex: 1, minWidth: 0, zIndex: 1 },
+  tcOpenInner: { flex: 1 },
   tcMain: { flex: 1, minWidth: 0 },
   tcChipRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   tcChipLeft: { alignItems: 'center', flexDirection: 'row', gap: 6 },
@@ -680,26 +721,6 @@ const styles = StyleSheet.create({
     gap: 4,
     minWidth: 58,
   },
-  cbCircle: {
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderColor: 'rgba(20,20,40,0.2)',
-    borderRadius: 13,
-    borderWidth: 2,
-    height: 26,
-    justifyContent: 'center',
-    width: 26,
-  },
-  cbDone: {
-    backgroundColor: colors.green,
-    borderColor: colors.green,
-    elevation: 3,
-    shadowColor: colors.green,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-  },
-  cbCheck: { color: '#ffffff', fontSize: 11, fontWeight: '700' },
   completeLabel: {
     color: colors.inkMuted,
     fontSize: 9.5,
@@ -767,6 +788,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     width: 40,
   },
+  bsTitleRow: { alignItems: 'center', flexDirection: 'row', gap: spacing.sm },
   bsTitle: { color: colors.ink, fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   bsTipTitle: { color: colors.inkSub, fontSize: 13, marginTop: -spacing.xs },
   bsBody: { color: colors.inkSub, fontSize: 13, lineHeight: 20 },
